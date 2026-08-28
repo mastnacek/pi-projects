@@ -16,7 +16,15 @@ export type ProjectType =
 
 export type ProjectSource = "auto" | "manual";
 
-export type ProjectSortBy = "name" | "mtime" | "alphabet" | "date";
+export type ProjectSortBy =
+  | "name"
+  | "root"
+  | "mtime"
+  | "type"
+  | "files"
+  | "git"
+  | "alphabet"
+  | "date";
 
 export interface GitInfo {
   isGit: boolean;
@@ -29,6 +37,17 @@ export interface GitInfo {
   aheadCount?: number;
   behindCount?: number;
   statusSummary?: string;
+}
+
+export interface ProjectFilterOptions {
+  name?: string;
+  root?: string;
+  type?: string;
+  query?: string;
+  gitOnly?: boolean;
+  dirtyOnly?: boolean;
+  cleanOnly?: boolean;
+  sortBy?: ProjectSortBy;
 }
 
 export interface ProjectItem {

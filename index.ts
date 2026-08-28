@@ -9,12 +9,21 @@ import {
   loadCachedProjects,
   loadProjectsConfig,
   normalizePath,
+  normalizeSortBy,
   saveCachedProjects,
   saveProjectsConfig,
 } from "./src/config.js";
 import { createProjectItem } from "./src/detector.js";
-import { scanAllRoots } from "./src/scanner.js";
-import { createProjectsAutocompleteProvider } from "./src/autocomplete.js";
+import {
+  filterProjects,
+  scanAllRoots,
+  searchAndRankProjects,
+  sortProjects,
+} from "./src/scanner.js";
+import {
+  abbreviateRootOrigin,
+  createProjectsAutocompleteProvider,
+} from "./src/autocomplete.js";
 import {
   coralGlow,
   goldGlow,
@@ -25,19 +34,25 @@ import {
   renderRootsTable,
   renderStatusSummary,
 } from "./src/viewer.js";
-import type { ProjectsConfig, ProjectsIndex } from "./src/types.js";
+import type {
+  ProjectFilterOptions,
+  ProjectsConfig,
+  ProjectsIndex,
+  ProjectSortBy,
+} from "./src/types.js";
 
 const SUBCOMMANDS_DOCS: Record<string, string> = {
-  list: "zobrazit přehlednou tabulku všech projektů",
+  list: "zobrazit tabulku projektů (filtry: root:X, name:Y, type:Z, sort:W)",
+  filter: "filtrovat projekty podle kořene, názvu či technologie",
   show: "zobrazit detail projektu podle ID či názvu",
-  sort: "nastavit řazení projektů (name = abecedně | mtime = podle data)",
+  sort: "nastavit výchozí řazení (name | root | mtime | type | files | git)",
+  search: "vyhledávat v projektech podle dotazu",
   pin: "připnout oblíbený projekt nahoru (<id|název>)",
   unpin: "odepnout projekt (<id|název>)",
   add: "ručně přidat projekt do indexu (<cesta> [název])",
   remove: "odebrat projekt z indexu (<id|cesta>)",
   roots: "správa kořenových složek pro skenování (list | add | remove)",
   scan: "spustit okamžité přegenerování indexu projektů",
-  search: "vyhledávat v projektech podle dotazu",
   status: "zobrazit statistiky indexu a stav @-našeptávání",
   help: "zobrazit podrobnou nápovědu v češtině",
 };
@@ -125,9 +140,9 @@ export default function (pi: ExtensionAPI): void {
     name: "list_projects",
     label: "List Projects",
     description:
-      "Vrátí seznam všech detekovaných i ručně přidaných projektů z kořenových složek včetně typu, cest a statistik.",
+      "Vrátí seznam všech detekovaných i ručně přidaných projektů z kořenových složek s možností filtrování podle kořene, názvu a technologie a volitelným řazením.",
     promptSnippet:
-      "Použij list_projects pro získání přehledu všech dostupných projektů v systému.",
+      "Použij list_projects pro získání přehledu projektů s možností filtrování podle kořenové složky, názvu či technologie.",
     promptGuidelines: [
       "Volej list_projects když uživatel hledá projekty nebo chce prozkoumat workspace.",
     ],
@@ -135,7 +150,24 @@ export default function (pi: ExtensionAPI): void {
       type: Type.Optional(
         Type.String({
           description:
-            "Volitelný filtr typu projektu (TypeScript, Python, Rust, Go, C/C++, Java/Kotlin, .NET/C#, PHP, Ruby, Flutter/Dart, Swift, Git, General)",
+            "Volitelný filtr typu projektu (TypeScript, Node.js, Python, Rust, Go, C/C++, Java/Kotlin, .NET/C#, PHP, Ruby, Flutter/Dart, Swift, Git, General)",
+        }),
+      ),
+      root: Type.Optional(
+        Type.String({
+          description:
+            "Volitelný filtr podle kořenové složky (např. 'D:/01_programovani' nebo název kořene)",
+        }),
+      ),
+      name: Type.Optional(
+        Type.String({
+          description: "Volitelný filtr podle názvu projektu (substring)",
+        }),
+      ),
+      sortBy: Type.Optional(
+        Type.String({
+          description:
+            "Volitelné řazení: 'name' (abecedně), 'root' (podle kořene), 'mtime' (podle data), 'type' (podle technologie), 'files' (podle počtu souborů), 'git' (podle stavu)",
         }),
       ),
       limit: Type.Optional(
@@ -145,13 +177,15 @@ export default function (pi: ExtensionAPI): void {
       ),
     }),
     execute: async (_toolCallId, params) => {
-      let list = currentIndex.projects;
-      if (params.type) {
-        const t = params.type.toLowerCase();
-        list = list.filter((p) => p.type.toLowerCase().includes(t));
-      }
+      const filtered = filterProjects(currentIndex.projects, {
+        type: params.type,
+        root: params.root,
+        name: params.name,
+        sortBy: (params.sortBy as ProjectSortBy) || currentConfig.sortBy || "name",
+      });
+
       const limit = params.limit ?? 100;
-      const sliced = list.slice(0, limit);
+      const sliced = filtered.slice(0, limit);
 
       return {
         content: [
@@ -159,16 +193,26 @@ export default function (pi: ExtensionAPI): void {
             type: "text",
             text: JSON.stringify(
               {
-                total: list.length,
+                total: currentIndex.projects.length,
+                matched: filtered.length,
                 returned: sliced.length,
                 projects: sliced.map((p) => ({
                   id: p.id,
                   name: p.name,
                   path: p.path,
+                  rootPath: p.rootPath,
+                  relativePath: p.relativePath,
                   type: p.type,
                   description: p.description,
                   fileCount: p.fileCount,
                   markers: p.markers,
+                  git: p.git
+                    ? {
+                        branch: p.git.branch,
+                        clean: p.git.clean,
+                        summary: p.git.statusSummary,
+                      }
+                    : undefined,
                 })),
               },
               null,
@@ -176,7 +220,11 @@ export default function (pi: ExtensionAPI): void {
             ),
           },
         ],
-        details: { total: list.length, returned: sliced.length },
+        details: {
+          total: currentIndex.projects.length,
+          matched: filtered.length,
+          returned: sliced.length,
+        },
       };
     },
   });
@@ -185,25 +233,38 @@ export default function (pi: ExtensionAPI): void {
     name: "search_projects",
     label: "Search Projects",
     description:
-      "Vyhledá projekty podle zadaného klíčového slova (název, cesta, technologie, značky).",
+      "Inteligentně vyhledá projekty podle zadaného klíčového slova (název, cesta, kořen, technologie, značky, popis).",
     promptSnippet:
-      "Použij search_projects pro vyhledání konkrétního projektu podle jména nebo technologie.",
+      "Použij search_projects pro vyhledání konkrétního projektu podle jména, cesty nebo technologie.",
     parameters: Type.Object({
       query: Type.String({
-        description: "Hledaný výraz (např. 'mozek', 'adr', 'python', 'spai')",
+        description:
+          "Hledaný výraz (např. 'mozek', 'adr', 'python scraper', 'rust')",
       }),
+      root: Type.Optional(
+        Type.String({
+          description: "Volitelný filtr na kořenovou složku",
+        }),
+      ),
+      type: Type.Optional(
+        Type.String({
+          description: "Volitelný filtr na technologii / typ projektu",
+        }),
+      ),
+      limit: Type.Optional(
+        Type.Number({
+          description: "Maximální počet vrácených výsledků (výchozí: 50)",
+        }),
+      ),
     }),
     execute: async (_toolCallId, params) => {
-      const q = params.query.toLowerCase().trim();
-      const matched = currentIndex.projects.filter((p) => {
-        return (
-          p.name.toLowerCase().includes(q) ||
-          p.path.toLowerCase().includes(q) ||
-          p.type.toLowerCase().includes(q) ||
-          (p.description && p.description.toLowerCase().includes(q)) ||
-          p.markers.some((m) => m.toLowerCase().includes(q))
-        );
+      const ranked = searchAndRankProjects(currentIndex.projects, params.query, {
+        root: params.root,
+        type: params.type,
       });
+
+      const limit = params.limit ?? 50;
+      const sliced = ranked.slice(0, limit);
 
       return {
         content: [
@@ -212,15 +273,30 @@ export default function (pi: ExtensionAPI): void {
             text: JSON.stringify(
               {
                 query: params.query,
-                count: matched.length,
-                results: matched,
+                matched: ranked.length,
+                returned: sliced.length,
+                results: sliced.map((r) => ({
+                  score: r.score,
+                  matchedFields: r.matchedFields,
+                  project: {
+                    id: r.project.id,
+                    name: r.project.name,
+                    path: r.project.path,
+                    rootPath: r.project.rootPath,
+                    relativePath: r.project.relativePath,
+                    type: r.project.type,
+                    description: r.project.description,
+                    fileCount: r.project.fileCount,
+                    git: r.project.git?.statusSummary,
+                  },
+                })),
               },
               null,
               2,
             ),
           },
         ],
-        details: { count: matched.length },
+        details: { matched: ranked.length, returned: sliced.length },
       };
     },
   });
@@ -348,14 +424,109 @@ export default function (pi: ExtensionAPI): void {
     }
 
     switch (sub) {
+      case "filter":
       case "list":
       case "ls": {
-        const filterType = rest[0]?.toLowerCase();
-        let list = currentIndex.projects;
-        if (filterType) {
-          list = list.filter((p) => p.type.toLowerCase().includes(filterType));
+        const filterOptions: ProjectFilterOptions = {};
+        let customSort: ProjectSortBy | undefined;
+        const textTokens: string[] = [];
+
+        for (const token of rest) {
+          const lower = token.toLowerCase();
+          if (lower.startsWith("root:") || lower.startsWith("koren:")) {
+            filterOptions.root = token.slice(token.indexOf(":") + 1);
+          } else if (lower.startsWith("--root=")) {
+            filterOptions.root = token.slice(7);
+          } else if (lower.startsWith("name:") || lower.startsWith("nazev:")) {
+            filterOptions.name = token.slice(token.indexOf(":") + 1);
+          } else if (lower.startsWith("--name=")) {
+            filterOptions.name = token.slice(7);
+          } else if (lower.startsWith("type:") || lower.startsWith("typ:")) {
+            filterOptions.type = token.slice(token.indexOf(":") + 1);
+          } else if (lower.startsWith("--type=")) {
+            filterOptions.type = token.slice(7);
+          } else if (lower.startsWith("sort:") || lower.startsWith("razeni:")) {
+            customSort = normalizeSortBy(token.slice(token.indexOf(":") + 1));
+          } else if (lower.startsWith("--sort=")) {
+            customSort = normalizeSortBy(token.slice(7));
+          } else if (lower === "--dirty" || lower === "git:dirty") {
+            filterOptions.dirtyOnly = true;
+          } else if (lower === "--clean" || lower === "git:clean") {
+            filterOptions.cleanOnly = true;
+          } else if (lower === "--git" || lower === "git:true") {
+            filterOptions.gitOnly = true;
+          } else {
+            const knownTypes = [
+              "typescript",
+              "node.js",
+              "node",
+              "python",
+              "rust",
+              "go",
+              "c/c++",
+              "c++",
+              "c",
+              "java/kotlin",
+              "java",
+              "kotlin",
+              ".net/c#",
+              ".net",
+              "c#",
+              "php",
+              "ruby",
+              "flutter/dart",
+              "flutter",
+              "dart",
+              "swift",
+              "git",
+              "general",
+            ];
+            if (!filterOptions.type && knownTypes.includes(lower)) {
+              filterOptions.type = lower;
+            } else if (
+              !filterOptions.root &&
+              (currentConfig.roots.some((r) =>
+                r.toLowerCase().includes(lower),
+              ) ||
+                currentIndex.projects.some(
+                  (p) =>
+                    p.rootPath &&
+                    abbreviateRootOrigin(p.rootPath, p.source).toLowerCase() ===
+                      lower,
+                ))
+            ) {
+              filterOptions.root = lower;
+            } else {
+              textTokens.push(token);
+            }
+          }
         }
-        ctx.ui.notify(renderProjectTable(list), "info");
+
+        if (textTokens.length > 0) {
+          filterOptions.query = textTokens.join(" ");
+        }
+
+        filterOptions.sortBy =
+          customSort || currentConfig.sortBy || "name";
+
+        const filtered = filterProjects(
+          currentIndex.projects,
+          filterOptions,
+        );
+
+        const descParts: string[] = [];
+        if (filterOptions.root) descParts.push(`kořen: ${filterOptions.root}`);
+        if (filterOptions.name) descParts.push(`název: ${filterOptions.name}`);
+        if (filterOptions.type) descParts.push(`typ: ${filterOptions.type}`);
+        if (filterOptions.query)
+          descParts.push(`dotaz: "${filterOptions.query}"`);
+        if (filterOptions.dirtyOnly) descParts.push("se změnami 📝");
+        if (filterOptions.cleanOnly) descParts.push("čisté ✨");
+        if (customSort) descParts.push(`řazeno: ${customSort}`);
+
+        const titleExtra =
+          descParts.length > 0 ? descParts.join(", ") : undefined;
+        ctx.ui.notify(renderProjectTable(filtered, titleExtra), "info");
         break;
       }
 
@@ -388,50 +559,43 @@ export default function (pi: ExtensionAPI): void {
       case "sort": {
         const mode = rest[0]?.toLowerCase();
         if (!mode) {
+          const sortLabels: Record<string, string> = {
+            name: "Abecedně podle názvu (A-Z)",
+            root: "Podle kořenové složky",
+            mtime: "Podle data poslední změny (nejnovější)",
+            type: "Podle technologie / typu",
+            files: "Podle počtu souborů",
+            git: "Podle Git stavu",
+          };
           const currentDesc =
-            currentConfig.sortBy === "mtime"
-              ? "podle data změny (nejnovější)"
-              : "abecedně (A-Z)";
+            sortLabels[currentConfig.sortBy || "name"] || "Abecedně (A-Z)";
           ctx.ui.notify(
-            `Aktuální řazení: ${goldGlow(currentDesc)}. Pro změnu použijte: /projects sort [name|mtime]`,
+            `Aktuální výchozí řazení: ${goldGlow(currentDesc)}.\nPro změnu zadejte: ${greenGlow("/projects sort [name | root | mtime | type | files | git]")}`,
             "info",
           );
           return;
         }
 
-        if (
-          mode === "name" ||
-          mode === "alphabet" ||
-          mode === "alpha" ||
-          mode === "abc"
-        ) {
-          currentConfig.sortBy = "name";
-          saveProjectsConfig(currentConfig);
-          await refreshProjectsIndex();
-          ctx.ui.notify(
-            `Řazení projektů nastaveno na: ${greenGlow("Abecedně (A-Z)")}`,
-            "info",
-          );
-          break;
-        }
+        const norm = normalizeSortBy(mode);
+        currentConfig.sortBy = norm;
+        saveProjectsConfig(currentConfig);
+        currentIndex.projects = sortProjects(currentIndex.projects, norm);
+        saveCachedProjects(currentIndex);
 
-        if (
-          mode === "mtime" ||
-          mode === "date" ||
-          mode === "time" ||
-          mode === "cas"
-        ) {
-          currentConfig.sortBy = "mtime";
-          saveProjectsConfig(currentConfig);
-          await refreshProjectsIndex();
-          ctx.ui.notify(
-            `Řazení projektů nastaveno na: ${greenGlow("Podle data změny (nejnovější)")}`,
-            "info",
-          );
-          break;
-        }
+        const labelMap: Record<string, string> = {
+          name: "Abecedně podle názvu (A-Z)",
+          root: "Podle kořenové složky",
+          mtime: "Podle data poslední změny (nejnovější)",
+          type: "Podle technologie / typu",
+          files: "Podle počtu souborů",
+          git: "Podle Git stavu",
+        };
+        const label = labelMap[norm] || "Abecedně (A-Z)";
 
-        ctx.ui.notify("Použijte: /projects sort [name | mtime]", "warning");
+        ctx.ui.notify(
+          `Výchozí řazení projektů nastaveno na: ${greenGlow(label)}`,
+          "info",
+        );
         break;
       }
 
@@ -670,30 +834,32 @@ export default function (pi: ExtensionAPI): void {
         break;
       }
 
+      case "find":
       case "search": {
-        const query = rest.join(" ").trim().toLowerCase();
+        const query = rest.join(" ").trim();
         if (!query) {
           ctx.ui.notify(
-            "Zadejte hledaný dotaz: /projects search <dotaz>",
+            "Zadejte hledaný výraz: /projects search <dotaz> (např. /projects search rust, /projects search scraper)",
             "warning",
           );
           return;
         }
-        const results = currentIndex.projects.filter(
-          (p) =>
-            p.name.toLowerCase().includes(query) ||
-            p.path.toLowerCase().includes(query) ||
-            p.type.toLowerCase().includes(query) ||
-            (p.description && p.description.toLowerCase().includes(query)),
+        const ranked = searchAndRankProjects(
+          currentIndex.projects,
+          query,
         );
-        if (results.length === 0) {
+        if (ranked.length === 0) {
           ctx.ui.notify(
-            `Pro dotaz "${query}" nebyly nalezeny žádné projekty.`,
+            `Pro dotaz "${query}" nebyly nalezeny žádné odpovídající projekty.`,
             "warning",
           );
           return;
         }
-        ctx.ui.notify(renderProjectTable(results), "info");
+        const matched = ranked.map((r) => r.project);
+        ctx.ui.notify(
+          renderProjectTable(matched, `hledání: "${query}"`),
+          "info",
+        );
         break;
       }
 
@@ -782,24 +948,64 @@ export default function (pi: ExtensionAPI): void {
         return filtered.length > 0 ? filtered : null;
       }
 
-      // /projects sort <name|mtime>
+      // /projects sort <name|root|mtime|type|files|git>
       if (cmd === "sort") {
         const sortOptions = [
           {
             value: "sort name",
             label: "sort name",
-            description: "Řadit abecedně (A-Z)",
+            description: "Řadit abecedně podle názvu (A-Z)",
+          },
+          {
+            value: "sort root",
+            label: "sort root",
+            description: "Řadit podle kořenové složky",
           },
           {
             value: "sort mtime",
             label: "sort mtime",
             description: "Řadit podle data poslední změny (nejnovější)",
           },
+          {
+            value: "sort type",
+            label: "sort type",
+            description: "Řadit podle technologie / typu",
+          },
+          {
+            value: "sort files",
+            label: "sort files",
+            description: "Řadit podle počtu souborů",
+          },
+          {
+            value: "sort git",
+            label: "sort git",
+            description: "Řadit podle stavu Git repozitáře",
+          },
         ];
         const filtered = sortOptions.filter((i) =>
           i.value.toLowerCase().startsWith(normalizedPrefix),
         );
         return filtered.length > 0 ? filtered : null;
+      }
+
+      // /projects search <query>
+      if (cmd === "search" || cmd === "find") {
+        const queryTerm = tokens.slice(1).join(" ").toLowerCase();
+        const suggestions: AutocompleteItem[] = [];
+
+        // Add matching project names
+        for (const p of currentIndex.projects) {
+          if (!queryTerm || p.name.toLowerCase().includes(queryTerm)) {
+            suggestions.push({
+              value: `${cmd} ${p.name}`,
+              label: `${p.name}`,
+              description: `[${p.type}] ${p.path}`,
+            });
+          }
+          if (suggestions.length >= 10) break;
+        }
+
+        return suggestions.length > 0 ? suggestions : null;
       }
 
       // /projects roots <add|remove|list>
@@ -844,10 +1050,11 @@ export default function (pi: ExtensionAPI): void {
         }
       }
 
-      // /projects list <type>
-      if (cmd === "list" || cmd === "ls") {
+      // /projects list / filter
+      if (cmd === "list" || cmd === "ls" || cmd === "filter") {
         const types = [
           "TypeScript",
+          "Node.js",
           "Python",
           "Rust",
           "Go",
@@ -861,12 +1068,53 @@ export default function (pi: ExtensionAPI): void {
           "Git",
           "General",
         ];
-        const items = types.map((t) => ({
-          value: `list ${t.toLowerCase()}`,
-          label: `list ${t}`,
+        const typeItems = types.map((t) => ({
+          value: `${cmd} ${t.toLowerCase()}`,
+          label: `${cmd} ${t}`,
           description: `Filtrovat projekty typu ${t}`,
         }));
-        const filtered = items.filter((i) =>
+
+        const filterHelpers = [
+          {
+            value: `${cmd} root:`,
+            label: `${cmd} root:<cesta>`,
+            description: "Filtrovat podle kořenové složky",
+          },
+          {
+            value: `${cmd} name:`,
+            label: `${cmd} name:<text>`,
+            description: "Filtrovat podle názvu projektu",
+          },
+          {
+            value: `${cmd} type:`,
+            label: `${cmd} type:<typ>`,
+            description: "Filtrovat podle typu projektu",
+          },
+          {
+            value: `${cmd} sort:`,
+            label: `${cmd} sort:<name|root|mtime|type|files|git>`,
+            description: "Řadit výpis podle kritéria",
+          },
+          {
+            value: `${cmd} --dirty`,
+            label: `${cmd} --dirty`,
+            description: "Zobrazit pouze projekty se změnami v Git",
+          },
+          {
+            value: `${cmd} --clean`,
+            label: `${cmd} --clean`,
+            description: "Zobrazit pouze čisté Git repozitáře",
+          },
+        ];
+
+        const rootItems = currentConfig.roots.map((r) => ({
+          value: `${cmd} root:${r}`,
+          label: `${cmd} root:${r}`,
+          description: `Filtrovat projekty z kořene ${r}`,
+        }));
+
+        const allItems = [...filterHelpers, ...rootItems, ...typeItems];
+        const filtered = allItems.filter((i) =>
           i.value.toLowerCase().startsWith(normalizedPrefix),
         );
         return filtered.length > 0 ? filtered : null;

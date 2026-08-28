@@ -4,8 +4,12 @@ import type {
   AutocompleteSuggestions,
 } from "@earendil-works/pi-tui";
 import type { ProjectItem, ProjectSortBy } from "./types.js";
+import { normalizeSortBy } from "./config.js";
 
-export function abbreviateRootOrigin(rootPath?: string, source?: string): string {
+export function abbreviateRootOrigin(
+  rootPath?: string,
+  source?: string,
+): string {
   if (!rootPath) {
     return source === "manual" ? "manual" : "root";
   }
@@ -63,12 +67,19 @@ function scoreProject(proj: ProjectItem, query: string): number {
   const lowerQ = query.toLowerCase().replace(/\\/g, "/");
   const lowerName = proj.name.toLowerCase();
   const lowerPath = proj.path.toLowerCase().replace(/\\/g, "/");
-  const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase().replace(/\\/g, "/") : "";
+  const lowerRel = proj.relativePath
+    ? proj.relativePath.toLowerCase().replace(/\\/g, "/")
+    : "";
   const lowerType = proj.type.toLowerCase();
   const lowerBranch = proj.git?.branch ? proj.git.branch.toLowerCase() : "";
 
   // Exact path or name match
-  if (lowerPath === lowerQ || lowerPath + "/" === lowerQ || lowerName === lowerQ) return 100;
+  if (
+    lowerPath === lowerQ ||
+    lowerPath + "/" === lowerQ ||
+    lowerName === lowerQ
+  )
+    return 100;
   if (lowerName.startsWith(lowerQ)) return 85;
   if (lowerPath.startsWith(lowerQ) || lowerQ.startsWith(lowerPath)) return 80;
   if (lowerRel && lowerRel.startsWith(lowerQ)) return 75;
@@ -87,16 +98,26 @@ export function filterProjectsForAutocomplete(
   maxResults?: number,
   sortBy: ProjectSortBy = "name",
 ): ProjectItem[] {
-  const isMtime = sortBy === "mtime" || sortBy === "date";
+  const normSort = normalizeSortBy(sortBy);
 
   if (!query) {
     const sorted = [...projects].sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
-      if (isMtime) {
+      if (normSort === "mtime") {
         if (b.lastModified !== a.lastModified) {
           return b.lastModified - a.lastModified;
         }
+      } else if (normSort === "root") {
+        const rootA = (a.rootPath || a.source || "").toLowerCase();
+        const rootB = (b.rootPath || b.source || "").toLowerCase();
+        const cmp = rootA.localeCompare(rootB, undefined, { sensitivity: "base" });
+        if (cmp !== 0) return cmp;
+      } else if (normSort === "type") {
+        const cmp = a.type.localeCompare(b.type, undefined, { sensitivity: "base" });
+        if (cmp !== 0) return cmp;
+      } else if (normSort === "files") {
+        if (b.fileCount !== a.fileCount) return b.fileCount - a.fileCount;
       }
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
@@ -111,17 +132,24 @@ export function filterProjectsForAutocomplete(
     if (a.project.pinned && !b.project.pinned) return -1;
     if (!a.project.pinned && b.project.pinned) return 1;
     if (b.score !== a.score) return b.score - a.score;
-    if (isMtime) {
+    if (normSort === "mtime") {
       if (b.project.lastModified !== a.project.lastModified) {
         return b.project.lastModified - a.project.lastModified;
       }
+    } else if (normSort === "root") {
+      const rootA = (a.project.rootPath || a.project.source || "").toLowerCase();
+      const rootB = (b.project.rootPath || b.project.source || "").toLowerCase();
+      const cmp = rootA.localeCompare(rootB, undefined, { sensitivity: "base" });
+      if (cmp !== 0) return cmp;
     }
     return a.project.name.localeCompare(b.project.name, undefined, {
       sensitivity: "base",
     });
   });
 
-  return maxResults ? scored.slice(0, maxResults).map((e) => e.project) : scored.map((e) => e.project);
+  return maxResults
+    ? scored.slice(0, maxResults).map((e) => e.project)
+    : scored.map((e) => e.project);
 }
 
 export function formatProjectAutocompleteItem(
@@ -224,12 +252,21 @@ export function createProjectsAutocompleteProvider(
       const decoratedBaseItems = baseSuggestions.items
         .filter((i) => !seenValues.has(i.value))
         .map((item) => {
-          const itemVal = item.value.replace(/^@"?|"$/g, "").replace(/\\/g, "/");
-          const normVal = itemVal.endsWith("/") ? itemVal.slice(0, -1) : itemVal;
+          const itemVal = item.value
+            .replace(/^@"?|"$/g, "")
+            .replace(/\\/g, "/");
+          const normVal = itemVal.endsWith("/")
+            ? itemVal.slice(0, -1)
+            : itemVal;
           const matchSub = projectMap.get(normVal);
           if (matchSub) {
-            const gitBadge = matchSub.git ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})` : "";
-            const rootAbbrev = abbreviateRootOrigin(matchSub.rootPath, matchSub.source);
+            const gitBadge = matchSub.git
+              ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})`
+              : "";
+            const rootAbbrev = abbreviateRootOrigin(
+              matchSub.rootPath,
+              matchSub.source,
+            );
             return {
               ...item,
               label: `📁 ${matchSub.name}/${gitBadge} [${rootAbbrev}]`,

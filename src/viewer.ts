@@ -5,6 +5,7 @@ import type {
   ProjectType,
 } from "./types.js";
 import { abbreviateRootOrigin } from "./autocomplete.js";
+import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 export const RESET = "\x1b[0m";
 export const BOLD = "\x1b[1m";
@@ -23,6 +24,20 @@ export const violetGlow = (s: string) =>
 export const coralGlow = (s: string) =>
   `\x1b[1m\x1b[38;2;255;107;107m${s}${RESET}`;
 export const dimGlow = (s: string) => `\x1b[38;2;127;140;141m${s}${RESET}`;
+
+export function padVisible(
+  str: string,
+  width: number,
+  align: "left" | "right" = "left",
+): string {
+  const vWidth = visibleWidth(str);
+  if (vWidth >= width) {
+    return vWidth === width ? str : truncateToWidth(str, width);
+  }
+  const diff = width - vWidth;
+  const padding = " ".repeat(diff);
+  return align === "right" ? padding + str : str + padding;
+}
 
 export function renderProjectTypeBadge(type: ProjectType): string {
   switch (type) {
@@ -64,38 +79,95 @@ function formatDate(timestamp: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function renderProjectTable(projects: ProjectItem[]): string {
+export function renderProjectTable(
+  projects: ProjectItem[],
+  titleExtra?: string,
+): string {
+  const colWidths = {
+    name: 28,
+    root: 12,
+    type: 15,
+    git: 20,
+    files: 8,
+  };
+
+  const headerCols = [
+    padVisible("Git / Název projektu", colWidths.name),
+    padVisible("Kořen", colWidths.root),
+    padVisible("Typ", colWidths.type),
+    padVisible("Git Stav", colWidths.git),
+    padVisible("Soubory", colWidths.files, "right"),
+    "Cesta",
+  ];
+
+  const headerLine = ` │ ${dimGlow(headerCols[0])} ${dimGlow(headerCols[1])} ${dimGlow(headerCols[2])} ${dimGlow(headerCols[3])} ${dimGlow(headerCols[4])} ${dimGlow(headerCols[5])}`;
+  const headerVisible =
+    3 +
+    colWidths.name +
+    1 +
+    colWidths.root +
+    1 +
+    colWidths.type +
+    1 +
+    colWidths.git +
+    1 +
+    colWidths.files +
+    1 +
+    35;
+
   if (projects.length === 0) {
-    return dimGlow("  (žádné projekty nenalezeny)");
+    const emptyCount = titleExtra ? `(0 položek — ${titleExtra})` : `(0 položek)`;
+    const topBarLen = Math.max(2, headerVisible - 20 - visibleWidth(emptyCount));
+    return [
+      ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(emptyCount)} ${dimGlow("─".repeat(topBarLen))}`,
+      headerLine,
+      ` ${dimGlow("├" + "─".repeat(headerVisible))}`,
+      ` ${dimGlow("│")} ${dimGlow("  (žádné projekty neodpovídají zadaným kritériím)")}`,
+      ` ${dimGlow("└" + "─".repeat(headerVisible))}`,
+    ].join("\n");
   }
 
+  const countStr = titleExtra
+    ? `(${projects.length} položek — ${titleExtra})`
+    : `(${projects.length} položek)`;
+
   const lines: string[] = [];
+  const topBarLen = Math.max(2, headerVisible - 20 - visibleWidth(countStr));
   lines.push(
-    ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(`(${projects.length} položek)`)}`,
+    ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(countStr)} ${dimGlow("─".repeat(topBarLen))}`,
   );
-  lines.push(
-    ` ${dimGlow("│")} ${dimGlow("Git / Název projektu".padEnd(26))} ${dimGlow("Kořen".padEnd(12))} ${dimGlow("Typ".padEnd(16))} ${dimGlow("Git Stav".padEnd(16))} ${dimGlow("Soubory".padEnd(9))} ${dimGlow("Cesta")}`,
-  );
-  lines.push(` ${dimGlow("├" + "─".repeat(96))}`);
+  lines.push(headerLine);
+  lines.push(` ${dimGlow("├" + "─".repeat(headerVisible))}`);
 
   for (const p of projects) {
     const icon = p.pinned ? "📌" : p.source === "manual" ? "📎" : "📁";
     const gitEmoji = p.git ? `${p.git.statusEmoji} ` : "";
-    const namePart = `${icon} ${gitEmoji}${p.name}`.padEnd(26);
-    const rootAbbrev = `[${abbreviateRootOrigin(p.rootPath, p.source)}]`.padEnd(12);
-    const typePart = renderProjectTypeBadge(p.type).padEnd(25);
-    const gitPart = p.git?.statusSummary
-      ? cyanGlow(p.git.statusSummary.padEnd(16))
-      : dimGlow("-".padEnd(16));
-    const filesPart = `${p.fileCount}`.padStart(7).padEnd(9);
+    const rawName = `${icon} ${gitEmoji}${p.name}`;
+    const truncatedName = truncateToWidth(rawName, colWidths.name);
+    const namePart = padVisible(cyanGlow(truncatedName), colWidths.name);
+
+    const rootAbbrev = `[${abbreviateRootOrigin(p.rootPath, p.source)}]`;
+    const rootPart = padVisible(violetGlow(rootAbbrev), colWidths.root);
+
+    const typeBadge = renderProjectTypeBadge(p.type);
+    const typePart = padVisible(typeBadge, colWidths.type);
+
+    const gitSummary = p.git?.statusSummary
+      ? p.git.clean
+        ? greenGlow(p.git.statusSummary)
+        : coralGlow(p.git.statusSummary)
+      : dimGlow("-");
+    const gitPart = padVisible(gitSummary, colWidths.git);
+
+    const filesPart = padVisible(String(p.fileCount), colWidths.files, "right");
     const pathPart = dimGlow(p.relativePath ? `.../${p.relativePath}` : p.path);
 
     lines.push(
-      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${violetGlow(rootAbbrev)} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
+      ` ${dimGlow("│")} ${namePart} ${rootPart} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
     );
   }
 
-  lines.push(` ${dimGlow("└" + "─".repeat(96))}`);
+  lines.push(` ${dimGlow("└" + "─".repeat(headerVisible))}`);
   return lines.join("\n");
 }
 
@@ -115,7 +187,9 @@ export function renderProjectDetail(p: ProjectItem): string {
   lines.push(`  ${cyanGlow("Cesta:")}         ${p.path}`);
   if (p.rootPath) {
     const shortRoot = abbreviateRootOrigin(p.rootPath, p.source);
-    lines.push(`  ${cyanGlow("Kořen:")}         ${p.rootPath} ${violetGlow(`[${shortRoot}]`)}`);
+    lines.push(
+      `  ${cyanGlow("Kořen:")}         ${p.rootPath} ${violetGlow(`[${shortRoot}]`)}`,
+    );
   }
   if (p.relativePath) {
     lines.push(`  ${cyanGlow("Rel. cesta:")}    ${p.relativePath}`);
@@ -205,6 +279,24 @@ export function renderRootsTable(
   return lines.join("\n");
 }
 
+function getSortDescription(sortBy?: string): string {
+  switch (sortBy) {
+    case "root":
+      return "Podle kořenové složky";
+    case "mtime":
+    case "date":
+      return "Podle data změny (nejnovější)";
+    case "type":
+      return "Podle technologie / typu";
+    case "files":
+      return "Podle počtu souborů";
+    case "git":
+      return "Podle Git stavu";
+    default:
+      return "Abecedně podle názvu (A-Z)";
+  }
+}
+
 export function renderStatusSummary(
   config: ProjectsConfig,
   index: ProjectsIndex,
@@ -233,10 +325,7 @@ export function renderStatusSummary(
     .map(([t, c]) => `${t}: ${c}`)
     .join(" | ");
 
-  const sortDesc =
-    config.sortBy === "mtime" || config.sortBy === "date"
-      ? "Podle data změny (nejnovější)"
-      : "Abecedně (A-Z)";
+  const sortDesc = getSortDescription(config.sortBy);
 
   const lines: string[] = [
     goldGlow(`⚡ pi-projects — Přehled stavu indexu projektů`),
@@ -272,16 +361,17 @@ export function renderHelpBanner(): string {
     `předsadí nalezené projekty na začátek nabídky včetně stavových Git emotikonů.`,
     "",
     cyanGlow(`Příkazy rozhraní (/projects nebo /proj):`),
-    `  ${greenGlow("/projects list")}                  — Zobrazit přehlednou tabulku všech projektů a Git stavů`,
+    `  ${greenGlow("/projects list [filtry]")}          — Zobrazit tabulku projektů (filtry: root:X, name:Y, type:Z)`,
     `  ${greenGlow("/projects show <id|název>")}       — Zobrazit detail projektu včetně kompletní Git diagnostiky`,
-    `  ${greenGlow("/projects sort [name|mtime]")}     — Nastavit výchozí řazení (name = abecedně, mtime = podle data)`,
+    `  ${greenGlow("/projects sort [name|root|mtime|type|files]")} — Nastavit výchozí řazení projektů`,
+    `  ${greenGlow("/projects search <dotaz>")}        — Vyhledávat v projektech (název, cesta, technologie, značky)`,
+    `  ${greenGlow("/projects pin/unpin <id|název>")}  — Připnout / odepnout oblíbený projekt na začátek`,
     `  ${greenGlow("/projects add <cesta> [název]")}   — Ručně přidat projekt do indexu`,
     `  ${greenGlow("/projects remove <id|cesta>")}     — Odebrat projekt z indexu`,
     `  ${greenGlow("/projects roots")}                 — Zobrazit seznam kořenových složek`,
     `  ${greenGlow("/projects roots add <cesta>")}     — Přidat novou kořenovou složku pro skenování`,
     `  ${greenGlow("/projects roots remove <cesta>")}  — Odebrat kořenovou složku`,
     `  ${greenGlow("/projects scan")}                  — Spustit okamžité přegenerování indexu a Git stavů`,
-    `  ${greenGlow("/projects search <dotaz>")}        — Vyhledávat v projektech podle názvu či cesty`,
     `  ${greenGlow("/projects status")}                — Zobrazit statistiky indexu a Git stavu`,
     `  ${greenGlow("/projects help")}                  — Zobrazit tuto nápovědu v češtině`,
     "",

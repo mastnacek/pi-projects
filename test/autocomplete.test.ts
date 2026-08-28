@@ -70,7 +70,10 @@ describe("Autocomplete Provider", () => {
 
   it("abbreviates root origin path", () => {
     assert.equal(abbreviateRootOrigin("D:/01_programovani"), "D:01_prog");
-    assert.equal(abbreviateRootOrigin("C:/Users/jaroslav/projects"), "C:projects");
+    assert.equal(
+      abbreviateRootOrigin("C:/Users/jaroslav/projects"),
+      "C:projects",
+    );
     assert.equal(abbreviateRootOrigin("D:/my-big-workspace"), "D:my-big-work");
     assert.equal(abbreviateRootOrigin(undefined, "manual"), "manual");
   });

@@ -12,6 +12,19 @@ import type { ProjectsConfig, ProjectsIndex } from "./types.js";
 const CONFIG_PATH = join(homedir(), ".pi", "agent", "pi-projects.json");
 const CACHE_PATH = join(homedir(), ".pi", "agent", "pi-projects-cache.json");
 
+export function normalizeSortBy(
+  s?: string,
+): "name" | "root" | "mtime" | "type" | "files" | "git" {
+  if (!s) return "name";
+  const lower = s.toLowerCase().trim();
+  if (lower === "root" || lower === "origin" || lower === "koren") return "root";
+  if (lower === "mtime" || lower === "date" || lower === "time" || lower === "cas") return "mtime";
+  if (lower === "type" || lower === "typ" || lower === "tech") return "type";
+  if (lower === "files" || lower === "soubory" || lower === "count") return "files";
+  if (lower === "git" || lower === "status") return "git";
+  return "name";
+}
+
 export function normalizePath(p: string): string {
   const norm = normalize(resolve(p)).replace(/\\/g, "/");
   // Keep drive letter root intact, e.g. "D:/" or "/"
@@ -92,10 +105,7 @@ export function loadProjectsConfig(): ProjectsConfig {
           typeof parsed.rescanIntervalMinutes === "number"
             ? parsed.rescanIntervalMinutes
             : 30,
-        sortBy:
-          parsed.sortBy === "mtime" || parsed.sortBy === "date"
-            ? "mtime"
-            : "name",
+        sortBy: normalizeSortBy(parsed.sortBy),
         lastScanTime: parsed.lastScanTime,
       };
     }

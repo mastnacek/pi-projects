@@ -9,7 +9,8 @@
 ## ✨ Hlavní funkce
 
 - ⚡ **@-Našeptávání projektů s Git stavem:** Při psaní `@` nebo `@nazev` v editoru předsadí detekované projekty na 1. místo nabídky jako `@cesta/k/projektu/` s přehlednou Git ikonou (`✨`, `📝`, `➕`, `❓`, `🚀`, `📥`, `⚡`).
-- 🔀 **Volitelné řazení:** Možnost řadit projekty abecedně (A-Z) nebo podle data poslední změny (`/projects sort [name|mtime]`).
+- 🔀 **Volitelné řazení:** Možnost řadit projekty abecedně podle názvu (`name`), podle kořenové složky (`root`), data poslední změny (`mtime`), technologie (`type`), počtu souborů (`files`) nebo stavu Gitu (`git`) přes `/projects sort <režim>`.
+- 🔎 **Filtrování a pokročilé vyhledávání:** Okamžité filtrování podle kořenové složky, technologie či názvu (`/projects list root:X type:Y name:Z`), nebo fulltextové hodnocené vyhledávání (`/projects search <dotaz>`).
 - 🌿 **Čtení stavu Git repozitářů:** Detekuje větve, počet upravených/přidaných souborů a neodeslaných (ahead) či ke stažení (behind) commitů.
 - 🔍 **Inteligentní detekce projektů:** Rozpoznává ekosystémy a technologie:
   - **TypeScript / JavaScript:** `package.json`, `tsconfig.json`, `deno.json`, `bun`
@@ -53,16 +54,19 @@ pi package add git:github.com/mastnacek/pi-projects
 
 | Příkaz | Popis |
 | --- | --- |
-| `/projects list` | Zobrazit přehlednou tabulku všech zaindexovaných projektů a Git stavů |
+| `/projects list [filtry]` | Zobrazit přehlednou tabulku projektů s volitelnými filtry (`root:X`, `name:Y`, `type:Z`, `sort:W`, `--dirty`, `--clean`) |
+| `/projects filter <kritéria>` | Alias pro filtrovaný výpis projektů podle kořene, názvu či technologie |
 | `/projects show <id\|název>` | Zobrazit detail konkrétního projektu včetně kompletní Git diagnostiky |
-| `/projects sort [name\|mtime]` | Nastavit výchozí řazení (name = abecedně, mtime = podle data) |
+| `/projects sort [režim]` | Nastavit výchozí řazení (`name`, `root`, `mtime`, `type`, `files`, `git`) |
+| `/projects search <dotaz>` | Pokročilé vyhledávání v projektech podle názvu, cesty, kořene, typu či značek |
+| `/projects pin <id\|název>` | Připnout oblíbený projekt trvale na 1. místo tabulky a našeptávače |
+| `/projects unpin <id\|název>` | Odepnout připnutý projekt |
 | `/projects add <cesta> [název]` | Ručně přidat projekt do indexu |
 | `/projects remove <id\|cesta>` | Odebrat projekt z indexu a zařadit mezi ignorované |
 | `/projects roots` | Zobrazit seznam sledovaných kořenových složek |
 | `/projects roots add <cesta>` | Přidat novou kořenovou složku pro skenování |
 | `/projects roots remove <cesta>` | Odebrat kořenovou složku |
 | `/projects scan` | Spustit okamžité přegenerování indexu a Git informací |
-| `/projects search <dotaz>` | Vyhledávat v projektech podle názvu, cesty či typu |
 | `/projects status` | Zobrazit statistiky, stav řazení a stav @-našeptávače |
 | `/projects help` | Zobrazit nápovědu v češtině s legendou emotikonů |
 
@@ -84,8 +88,8 @@ pi package add git:github.com/mastnacek/pi-projects
 
 Rozšíření registruje tyto nástroje přímo pro agenta:
 
-- `list_projects` — Vrátí seznam všech detekovaných i ručně přidaných projektů.
-- `search_projects` — Vyhledá projekty podle zadaného klíčového slova.
+- `list_projects` — Vrátí seznam projektů s možností filtrování podle kořenové složky (`root`), názvu (`name`) či technologie (`type`) a volitelným řazením (`sortBy`).
+- `search_projects` — Vyhledá a seřadí projekty podle relevance k zadanému dotazu s možností dodatečných filtrů.
 - `add_project_root` — Přidá novou kořenovou složku pro skenování projektů.
 - `add_project_manually` — Ručně zaregistruje konkrétní projekt.
 
