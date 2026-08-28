@@ -24,7 +24,11 @@ import {
   renderRootsTable,
   renderStatusSummary,
 } from "./src/viewer.js";
-import type { ProjectItem, ProjectsConfig, ProjectsIndex } from "./src/types.js";
+import type {
+  ProjectItem,
+  ProjectsConfig,
+  ProjectsIndex,
+} from "./src/types.js";
 
 const SUBCOMMANDS_DOCS: Record<string, string> = {
   list: "zobrazit přehlednou tabulku všech projektů",
@@ -61,7 +65,9 @@ async function refreshProjectsIndex(
     saveProjectsConfig(currentConfig);
     saveCachedProjects(updated);
     if (notifyCb) {
-      notifyCb(`Index aktualizován: nalezeno ${updated.projects.length} projektů`);
+      notifyCb(
+        `Index aktualizován: nalezeno ${updated.projects.length} projektů`,
+      );
     }
     return updated;
   } finally {
@@ -96,7 +102,8 @@ export default function (pi: ExtensionAPI): void {
 
     // Trigger background rescan if cache empty or stale (> 30 min)
     const now = Date.now();
-    const staleThreshold = (currentConfig.rescanIntervalMinutes || 30) * 60 * 1000;
+    const staleThreshold =
+      (currentConfig.rescanIntervalMinutes || 30) * 60 * 1000;
     if (
       currentIndex.projects.length === 0 ||
       now - currentIndex.lastUpdated > staleThreshold
@@ -118,7 +125,8 @@ export default function (pi: ExtensionAPI): void {
     label: "List Projects",
     description:
       "Vrátí seznam všech detekovaných i ručně přidaných projektů z kořenových složek včetně typu, cest a statistik.",
-    promptSnippet: "Použij list_projects pro získání přehledu všech dostupných projektů v systému.",
+    promptSnippet:
+      "Použij list_projects pro získání přehledu všech dostupných projektů v systému.",
     promptGuidelines: [
       "Volej list_projects když uživatel hledá projekty nebo chce prozkoumat workspace.",
     ],
@@ -177,7 +185,8 @@ export default function (pi: ExtensionAPI): void {
     label: "Search Projects",
     description:
       "Vyhledá projekty podle zadaného klíčového slova (název, cesta, technologie, značky).",
-    promptSnippet: "Použij search_projects pro vyhledání konkrétního projektu podle jména nebo technologie.",
+    promptSnippet:
+      "Použij search_projects pro vyhledání konkrétního projektu podle jména nebo technologie.",
     parameters: Type.Object({
       query: Type.String({
         description: "Hledaný výraz (např. 'mozek', 'adr', 'python', 'spai')",
@@ -218,14 +227,20 @@ export default function (pi: ExtensionAPI): void {
   pi.registerTool({
     name: "add_project_root",
     label: "Add Project Root Folder",
-    description: "Přidá novou kořenovou složku pro skenování projektů a spustí rescan.",
+    description:
+      "Přidá novou kořenovou složku pro skenování projektů a spustí rescan.",
     parameters: Type.Object({
-      path: Type.String({ description: "Cesta ke složce (např. D:/01_programovani)" }),
+      path: Type.String({
+        description: "Cesta ke složce (např. D:/01_programovani)",
+      }),
     }),
     execute: async (
       _toolCallId,
       params,
-    ): Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }> => {
+    ): Promise<{
+      content: Array<{ type: "text"; text: string }>;
+      details: Record<string, unknown>;
+    }> => {
       const norm = normalizePath(params.path);
       if (!currentConfig.roots.includes(norm)) {
         currentConfig.roots.push(norm);
@@ -238,7 +253,11 @@ export default function (pi: ExtensionAPI): void {
               text: `Kořenová složka "${norm}" byla úspěšně přidána. Celkem projektů: ${currentIndex.projects.length}`,
             },
           ],
-          details: { added: true, root: norm, totalProjects: currentIndex.projects.length },
+          details: {
+            added: true,
+            root: norm,
+            totalProjects: currentIndex.projects.length,
+          },
         };
       }
       return {
@@ -259,12 +278,17 @@ export default function (pi: ExtensionAPI): void {
     description: "Ručně zaregistruje konkrétní projekt podle cesty.",
     parameters: Type.Object({
       path: Type.String({ description: "Cesta k projektu" }),
-      name: Type.Optional(Type.String({ description: "Volitelný vlastní název projektu" })),
+      name: Type.Optional(
+        Type.String({ description: "Volitelný vlastní název projektu" }),
+      ),
     }),
     execute: async (
       _toolCallId,
       params,
-    ): Promise<{ content: Array<{ type: "text"; text: string }>; details: Record<string, unknown> }> => {
+    ): Promise<{
+      content: Array<{ type: "text"; text: string }>;
+      details: Record<string, unknown>;
+    }> => {
       const norm = normalizePath(params.path);
       const item = createProjectItem(norm, undefined, "manual");
       if (!item) {
@@ -337,7 +361,10 @@ export default function (pi: ExtensionAPI): void {
       case "show": {
         const target = rest.join(" ").trim().toLowerCase();
         if (!target) {
-          ctx.ui.notify("Zadejte ID nebo název projektu: /projects show <id|název>", "warning");
+          ctx.ui.notify(
+            "Zadejte ID nebo název projektu: /projects show <id|název>",
+            "warning",
+          );
           return;
         }
         const proj = currentIndex.projects.find(
@@ -347,7 +374,10 @@ export default function (pi: ExtensionAPI): void {
             p.path.toLowerCase().endsWith(target),
         );
         if (!proj) {
-          ctx.ui.notify(`Projekt "${target}" nebyl v indexu nalezen.`, "warning");
+          ctx.ui.notify(
+            `Projekt "${target}" nebyl v indexu nalezen.`,
+            "warning",
+          );
           return;
         }
         ctx.ui.notify(renderProjectDetail(proj), "info");
@@ -358,13 +388,19 @@ export default function (pi: ExtensionAPI): void {
         const targetPath = rest[0];
         const customName = rest.slice(1).join(" ").trim() || undefined;
         if (!targetPath) {
-          ctx.ui.notify("Zadejte cestu k projektu: /projects add <cesta> [název]", "warning");
+          ctx.ui.notify(
+            "Zadejte cestu k projektu: /projects add <cesta> [název]",
+            "warning",
+          );
           return;
         }
         const norm = normalizePath(targetPath);
         const item = createProjectItem(norm, undefined, "manual");
         if (!item) {
-          ctx.ui.notify(`Cesta "${norm}" neexistuje nebo nebyla rozpoznána.`, "error");
+          ctx.ui.notify(
+            `Cesta "${norm}" neexistuje nebo nebyla rozpoznána.`,
+            "error",
+          );
           return;
         }
         if (customName) item.name = customName;
@@ -378,7 +414,9 @@ export default function (pi: ExtensionAPI): void {
           currentConfig.manualProjects.push(item);
         }
         saveProjectsConfig(currentConfig);
-        await refreshProjectsIndex(undefined, (msg) => ctx.ui.notify(msg, "info"));
+        await refreshProjectsIndex(undefined, (msg) =>
+          ctx.ui.notify(msg, "info"),
+        );
         ctx.ui.notify(
           `Projekt ${greenGlow(item.name)} (${item.type}) byl úspěšně přidán!`,
           "info",
@@ -390,7 +428,10 @@ export default function (pi: ExtensionAPI): void {
       case "rm": {
         const target = rest.join(" ").trim().toLowerCase();
         if (!target) {
-          ctx.ui.notify("Zadejte ID, název nebo cestu projektu k odebrání: /projects remove <id|cesta>", "warning");
+          ctx.ui.notify(
+            "Zadejte ID, název nebo cestu projektu k odebrání: /projects remove <id|cesta>",
+            "warning",
+          );
           return;
         }
 
@@ -415,7 +456,10 @@ export default function (pi: ExtensionAPI): void {
         const afterCount = currentIndex.projects.length;
 
         if (beforeCount === afterCount) {
-          ctx.ui.notify(`Projekt "${target}" byl zařazen mezi ignorované cesty.`, "info");
+          ctx.ui.notify(
+            `Projekt "${target}" byl zařazen mezi ignorované cesty.`,
+            "info",
+          );
         } else {
           ctx.ui.notify(`Projekt "${target}" byl odebrán z indexu.`, "info");
         }
@@ -427,13 +471,19 @@ export default function (pi: ExtensionAPI): void {
         const rootArg = rest.slice(1).join(" ").trim();
 
         if (!action || action === "list") {
-          ctx.ui.notify(renderRootsTable(currentConfig.roots, currentIndex.projects), "info");
+          ctx.ui.notify(
+            renderRootsTable(currentConfig.roots, currentIndex.projects),
+            "info",
+          );
           return;
         }
 
         if (action === "add") {
           if (!rootArg) {
-            ctx.ui.notify("Zadejte cestu ke kořenové složce: /projects roots add <cesta>", "warning");
+            ctx.ui.notify(
+              "Zadejte cestu ke kořenové složce: /projects roots add <cesta>",
+              "warning",
+            );
             return;
           }
           const norm = normalizePath(rootArg);
@@ -443,37 +493,63 @@ export default function (pi: ExtensionAPI): void {
           }
           currentConfig.roots.push(norm);
           saveProjectsConfig(currentConfig);
-          ctx.ui.notify(`Přidána kořenová složka: ${greenGlow(norm)}. Spouštím skenování...`, "info");
-          await refreshProjectsIndex(undefined, (msg) => ctx.ui.notify(msg, "info"));
+          ctx.ui.notify(
+            `Přidána kořenová složka: ${greenGlow(norm)}. Spouštím skenování...`,
+            "info",
+          );
+          await refreshProjectsIndex(undefined, (msg) =>
+            ctx.ui.notify(msg, "info"),
+          );
           break;
         }
 
         if (action === "remove" || action === "rm") {
           if (!rootArg) {
-            ctx.ui.notify("Zadejte cestu ke kořenové složce: /projects roots remove <cesta>", "warning");
+            ctx.ui.notify(
+              "Zadejte cestu ke kořenové složce: /projects roots remove <cesta>",
+              "warning",
+            );
             return;
           }
           const norm = normalizePath(rootArg);
           const initialLen = currentConfig.roots.length;
-          currentConfig.roots = currentConfig.roots.filter((r) => normalizePath(r) !== norm);
+          currentConfig.roots = currentConfig.roots.filter(
+            (r) => normalizePath(r) !== norm,
+          );
           if (currentConfig.roots.length === initialLen) {
-            ctx.ui.notify(`Kořenová složka "${norm}" nebyla v konfiguraci nalezena.`, "warning");
+            ctx.ui.notify(
+              `Kořenová složka "${norm}" nebyla v konfiguraci nalezena.`,
+              "warning",
+            );
             return;
           }
           saveProjectsConfig(currentConfig);
-          ctx.ui.notify(`Odebrána kořenová složka: ${coralGlow(norm)}. Aktualizuji index...`, "info");
-          await refreshProjectsIndex(undefined, (msg) => ctx.ui.notify(msg, "info"));
+          ctx.ui.notify(
+            `Odebrána kořenová složka: ${coralGlow(norm)}. Aktualizuji index...`,
+            "info",
+          );
+          await refreshProjectsIndex(undefined, (msg) =>
+            ctx.ui.notify(msg, "info"),
+          );
           break;
         }
 
-        ctx.ui.notify("Použijte: /projects roots [list | add <cesta> | remove <cesta>]", "warning");
+        ctx.ui.notify(
+          "Použijte: /projects roots [list | add <cesta> | remove <cesta>]",
+          "warning",
+        );
         break;
       }
 
       case "scan":
       case "refresh": {
-        ctx.ui.notify("Spouštím skenování kořenových složek projektů...", "info");
-        await refreshProjectsIndex(undefined, (msg) => ctx.ui.notify(msg, "info"));
+        ctx.ui.notify(
+          "Spouštím skenování kořenových složek projektů...",
+          "info",
+        );
+        await refreshProjectsIndex(undefined, (msg) =>
+          ctx.ui.notify(msg, "info"),
+        );
         ctx.ui.notify(
           `Skenování dokončeno! Index obsahuje celkem ${greenGlow(String(currentIndex.projects.length))} projektů.`,
           "info",
@@ -484,7 +560,10 @@ export default function (pi: ExtensionAPI): void {
       case "search": {
         const query = rest.join(" ").trim().toLowerCase();
         if (!query) {
-          ctx.ui.notify("Zadejte hledaný dotaz: /projects search <dotaz>", "warning");
+          ctx.ui.notify(
+            "Zadejte hledaný dotaz: /projects search <dotaz>",
+            "warning",
+          );
           return;
         }
         const results = currentIndex.projects.filter(
@@ -495,7 +574,10 @@ export default function (pi: ExtensionAPI): void {
             (p.description && p.description.toLowerCase().includes(query)),
         );
         if (results.length === 0) {
-          ctx.ui.notify(`Pro dotaz "${query}" nebyly nalezeny žádné projekty.`, "warning");
+          ctx.ui.notify(
+            `Pro dotaz "${query}" nebyly nalezeny žádné projekty.`,
+            "warning",
+          );
           return;
         }
         ctx.ui.notify(renderProjectTable(results), "info");
@@ -534,9 +616,10 @@ export default function (pi: ExtensionAPI): void {
           label: `${p.name}`,
           description: `[${p.type}] ${p.path}`,
         }));
-        const filtered = items.filter((i) =>
-          i.value.toLowerCase().startsWith(normalizedPrefix) ||
-          i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
+        const filtered = items.filter(
+          (i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix) ||
+            i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
         );
         return filtered.length > 0 ? filtered : null;
       }
@@ -548,9 +631,10 @@ export default function (pi: ExtensionAPI): void {
           label: `${p.name}`,
           description: `[${p.type}] ${p.path}`,
         }));
-        const filtered = items.filter((i) =>
-          i.value.toLowerCase().startsWith(normalizedPrefix) ||
-          i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
+        const filtered = items.filter(
+          (i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix) ||
+            i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
         );
         return filtered.length > 0 ? filtered : null;
       }
@@ -559,21 +643,40 @@ export default function (pi: ExtensionAPI): void {
       if (cmd === "roots") {
         if (tokens.length === 2 && !trailingSpace) {
           const rootSub = [
-            { value: "roots list", label: "roots list", description: "Zobrazit kořenové složky" },
-            { value: "roots add", label: "roots add", description: "Přidat kořenovou složku" },
-            { value: "roots remove", label: "roots remove", description: "Odebrat kořenovou složku" },
+            {
+              value: "roots list",
+              label: "roots list",
+              description: "Zobrazit kořenové složky",
+            },
+            {
+              value: "roots add",
+              label: "roots add",
+              description: "Přidat kořenovou složku",
+            },
+            {
+              value: "roots remove",
+              label: "roots remove",
+              description: "Odebrat kořenovou složku",
+            },
           ];
-          const filtered = rootSub.filter((i) => i.value.toLowerCase().startsWith(normalizedPrefix));
+          const filtered = rootSub.filter((i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix),
+          );
           return filtered.length > 0 ? filtered : null;
         }
 
-        if (tokens[1]?.toLowerCase() === "remove" || tokens[1]?.toLowerCase() === "rm") {
+        if (
+          tokens[1]?.toLowerCase() === "remove" ||
+          tokens[1]?.toLowerCase() === "rm"
+        ) {
           const items = currentConfig.roots.map((r) => ({
             value: `roots remove ${r}`,
             label: r,
             description: "Odebrat tuto kořenovou složku",
           }));
-          const filtered = items.filter((i) => i.value.toLowerCase().startsWith(normalizedPrefix));
+          const filtered = items.filter((i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix),
+          );
           return filtered.length > 0 ? filtered : null;
         }
       }
@@ -600,7 +703,9 @@ export default function (pi: ExtensionAPI): void {
           label: `list ${t}`,
           description: `Filtrovat projekty typu ${t}`,
         }));
-        const filtered = items.filter((i) => i.value.toLowerCase().startsWith(normalizedPrefix));
+        const filtered = items.filter((i) =>
+          i.value.toLowerCase().startsWith(normalizedPrefix),
+        );
         return filtered.length > 0 ? filtered : null;
       }
 

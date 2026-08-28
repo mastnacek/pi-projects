@@ -1,7 +1,11 @@
 import { readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ProjectItem, ProjectsConfig, ProjectsIndex } from "./types.js";
-import { createProjectItem, detectProjectInDir, IGNORED_SCAN_DIRS } from "./detector.js";
+import {
+  createProjectItem,
+  detectProjectInDir,
+  IGNORED_SCAN_DIRS,
+} from "./detector.js";
 import { normalizePath } from "./config.js";
 
 interface ScanContext {
@@ -146,12 +150,11 @@ export async function scanAllRoots(
     allProjects.delete(normalizePath(excluded));
   }
 
-  // Sort projects: pinned first, then lastModified desc, then name asc
+  // Sort projects: pinned first, then alphabetical by name asc
   const sorted = Array.from(allProjects.values()).sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
-    if (b.lastModified !== a.lastModified) return b.lastModified - a.lastModified;
-    return a.name.localeCompare(b.name);
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   });
 
   return {

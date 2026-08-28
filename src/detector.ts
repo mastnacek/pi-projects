@@ -77,14 +77,20 @@ function extractGoModuleName(content: string): string | undefined {
   return match?.[1]?.split("/").pop();
 }
 
-function extractReadmeDescription(dirPath: string, files: string[]): string | undefined {
+function extractReadmeDescription(
+  dirPath: string,
+  files: string[],
+): string | undefined {
   const readme = files.find((f) => /^readme(\.md|\.txt|\.rst)?$/i.test(f));
   if (!readme) return undefined;
 
   try {
     const full = join(dirPath, readme);
     const text = readFileSync(full, "utf8");
-    const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+    const lines = text
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean);
     for (const line of lines) {
       if (line.startsWith("#")) {
         const heading = line.replace(/^#+\s*/, "").trim();
@@ -218,7 +224,12 @@ export function detectProjectInDir(dirPath: string): DetectionResult | null {
   }
 
   // 5. C / C++
-  const cppMarkers = ["CMakeLists.txt", "Makefile", "meson.build", "configure.ac"];
+  const cppMarkers = [
+    "CMakeLists.txt",
+    "Makefile",
+    "meson.build",
+    "configure.ac",
+  ];
   const foundCpp = cppMarkers.filter((m) => fileSet.has(m));
   if (!type && foundCpp.length > 0) {
     markers.push(...foundCpp);
@@ -226,7 +237,12 @@ export function detectProjectInDir(dirPath: string): DetectionResult | null {
   }
 
   // 6. Java / Kotlin
-  const javaMarkers = ["pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle"];
+  const javaMarkers = [
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
+  ];
   const foundJava = javaMarkers.filter((m) => fileSet.has(m));
   if (!type && foundJava.length > 0) {
     markers.push(...foundJava);
@@ -234,7 +250,9 @@ export function detectProjectInDir(dirPath: string): DetectionResult | null {
   }
 
   // 7. .NET / C#
-  const dotNetFile = fileNames.find((f) => f.endsWith(".sln") || f.endsWith(".csproj") || f.endsWith(".fsproj"));
+  const dotNetFile = fileNames.find(
+    (f) => f.endsWith(".sln") || f.endsWith(".csproj") || f.endsWith(".fsproj"),
+  );
   if (!type && dotNetFile) {
     markers.push(dotNetFile);
     type = ".NET/C#";
@@ -259,7 +277,11 @@ export function detectProjectInDir(dirPath: string): DetectionResult | null {
   }
 
   // 11. Swift
-  if (!type && (fileSet.has("Package.swift") || fileNames.some((f) => f.endsWith(".xcodeproj")))) {
+  if (
+    !type &&
+    (fileSet.has("Package.swift") ||
+      fileNames.some((f) => f.endsWith(".xcodeproj")))
+  ) {
     markers.push("Package.swift");
     type = "Swift";
   }
@@ -274,8 +296,17 @@ export function detectProjectInDir(dirPath: string): DetectionResult | null {
 
   // 13. General project (has README/LICENSE and source dirs/files)
   if (!type) {
-    const hasDoc = fileSet.has("README.md") || fileSet.has("README.txt") || fileSet.has("readme.md") || fileSet.has("LICENSE");
-    const hasSrc = fileSet.has("src") || fileSet.has("lib") || fileSet.has("docs") || fileSet.has("app") || fileSet.has("pkg");
+    const hasDoc =
+      fileSet.has("README.md") ||
+      fileSet.has("README.txt") ||
+      fileSet.has("readme.md") ||
+      fileSet.has("LICENSE");
+    const hasSrc =
+      fileSet.has("src") ||
+      fileSet.has("lib") ||
+      fileSet.has("docs") ||
+      fileSet.has("app") ||
+      fileSet.has("pkg");
     if (hasDoc && hasSrc) {
       markers.push("README.md");
       type = "General";

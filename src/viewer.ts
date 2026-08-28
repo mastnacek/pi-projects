@@ -1,15 +1,26 @@
-import type { ProjectItem, ProjectsConfig, ProjectsIndex, ProjectType } from "./types.js";
+import type {
+  ProjectItem,
+  ProjectsConfig,
+  ProjectsIndex,
+  ProjectType,
+} from "./types.js";
 
 export const RESET = "\x1b[0m";
 export const BOLD = "\x1b[1m";
 export const DIM = "\x1b[2m";
 
-export const goldGlow = (s: string) => `\x1b[1m\x1b[38;2;255;215;0m${s}${RESET}`;
-export const cyanGlow = (s: string) => `\x1b[1m\x1b[38;2;0;255;255m${s}${RESET}`;
-export const greenGlow = (s: string) => `\x1b[1m\x1b[38;2;0;255;127m${s}${RESET}`;
-export const pinkGlow = (s: string) => `\x1b[1m\x1b[38;2;255;95;215m${s}${RESET}`;
-export const violetGlow = (s: string) => `\x1b[1m\x1b[38;2;186;85;211m${s}${RESET}`;
-export const coralGlow = (s: string) => `\x1b[1m\x1b[38;2;255;107;107m${s}${RESET}`;
+export const goldGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;255;215;0m${s}${RESET}`;
+export const cyanGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;0;255;255m${s}${RESET}`;
+export const greenGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;0;255;127m${s}${RESET}`;
+export const pinkGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;255;95;215m${s}${RESET}`;
+export const violetGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;186;85;211m${s}${RESET}`;
+export const coralGlow = (s: string) =>
+  `\x1b[1m\x1b[38;2;255;107;107m${s}${RESET}`;
 export const dimGlow = (s: string) => `\x1b[38;2;127;140;141m${s}${RESET}`;
 
 export function renderProjectTypeBadge(type: ProjectType): string {
@@ -71,10 +82,14 @@ export function renderProjectTable(projects: ProjectItem[]): string {
     const namePart = `${icon} ${p.name}`.padEnd(26);
     const typePart = renderProjectTypeBadge(p.type).padEnd(25);
     const filesPart = `${p.fileCount}`.padStart(7).padEnd(9);
-    const srcPart = (p.source === "manual" ? pinkGlow("ruční") : cyanGlow("auto")).padEnd(17);
+    const srcPart = (
+      p.source === "manual" ? pinkGlow("ruční") : cyanGlow("auto")
+    ).padEnd(17);
     const pathPart = dimGlow(p.relativePath ? `.../${p.relativePath}` : p.path);
 
-    lines.push(` ${dimGlow("│")} ${cyanGlow(namePart)} ${typePart} ${filesPart} ${srcPart} ${pathPart}`);
+    lines.push(
+      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${typePart} ${filesPart} ${srcPart} ${pathPart}`,
+    );
   }
 
   lines.push(` ${dimGlow("└" + "─".repeat(78))}`);
@@ -83,11 +98,15 @@ export function renderProjectTable(projects: ProjectItem[]): string {
 
 export function renderProjectDetail(p: ProjectItem): string {
   const lines: string[] = [];
-  lines.push(goldGlow(`═══════════════════════════════════════════════════════════════`));
+  lines.push(
+    goldGlow(`═══════════════════════════════════════════════════════════════`),
+  );
   lines.push(
     `  📁 ${goldGlow(p.name)}  ${renderProjectTypeBadge(p.type)}  ${p.source === "manual" ? pinkGlow("[Ručně přidáno]") : cyanGlow("[Auto-detekce]")}`,
   );
-  lines.push(goldGlow(`═══════════════════════════════════════════════════════════════`));
+  lines.push(
+    goldGlow(`═══════════════════════════════════════════════════════════════`),
+  );
   lines.push(`  ${cyanGlow("ID:")}            ${p.id}`);
   lines.push(`  ${cyanGlow("Cesta:")}         ${p.path}`);
   if (p.rootPath) {
@@ -102,25 +121,40 @@ export function renderProjectDetail(p: ProjectItem): string {
   lines.push(`  ${cyanGlow("Značky:")}        ${p.markers.join(", ") || "-"}`);
   lines.push(`  ${cyanGlow("Počet souborů:")} ${p.fileCount}`);
   lines.push(`  ${cyanGlow("Poslední změna:")} ${formatDate(p.lastModified)}`);
-  lines.push(goldGlow(`═══════════════════════════════════════════════════════════════`));
+  lines.push(
+    goldGlow(`═══════════════════════════════════════════════════════════════`),
+  );
 
   return lines.join("\n");
 }
 
-export function renderRootsTable(roots: string[], projects: ProjectItem[]): string {
+export function renderRootsTable(
+  roots: string[],
+  projects: ProjectItem[],
+): string {
   const lines: string[] = [];
-  lines.push(` ${dimGlow("┌─")} ${goldGlow("Konfigurované kořenové složky pro skenování")}`);
-  lines.push(` ${dimGlow("│")} ${dimGlow("Poř.".padEnd(6))} ${dimGlow("Nalezeno".padEnd(10))} ${dimGlow("Cesta")}`);
+  lines.push(
+    ` ${dimGlow("┌─")} ${goldGlow("Konfigurované kořenové složky pro skenování")}`,
+  );
+  lines.push(
+    ` ${dimGlow("│")} ${dimGlow("Poř.".padEnd(6))} ${dimGlow("Nalezeno".padEnd(10))} ${dimGlow("Cesta")}`,
+  );
   lines.push(` ${dimGlow("├" + "─".repeat(70))}`);
 
   if (roots.length === 0) {
-    lines.push(` ${dimGlow("│")} ${dimGlow("(žádné kořenové složky nenastaveny)")}`);
+    lines.push(
+      ` ${dimGlow("│")} ${dimGlow("(žádné kořenové složky nenastaveny)")}`,
+    );
   } else {
     roots.forEach((root, idx) => {
-      const count = projects.filter((p) => p.rootPath === root || p.path.startsWith(root)).length;
+      const count = projects.filter(
+        (p) => p.rootPath === root || p.path.startsWith(root),
+      ).length;
       const num = `#${idx + 1}`.padEnd(6);
       const countStr = `${count} proj`.padEnd(10);
-      lines.push(` ${dimGlow("│")} ${num} ${greenGlow(countStr)} ${cyanGlow(root)}`);
+      lines.push(
+        ` ${dimGlow("│")} ${num} ${greenGlow(countStr)} ${cyanGlow(root)}`,
+      );
     });
   }
 
@@ -128,10 +162,15 @@ export function renderRootsTable(roots: string[], projects: ProjectItem[]): stri
   return lines.join("\n");
 }
 
-export function renderStatusSummary(config: ProjectsConfig, index: ProjectsIndex): string {
+export function renderStatusSummary(
+  config: ProjectsConfig,
+  index: ProjectsIndex,
+): string {
   const total = index.projects.length;
   const autoCount = index.projects.filter((p) => p.source === "auto").length;
-  const manualCount = index.projects.filter((p) => p.source === "manual").length;
+  const manualCount = index.projects.filter(
+    (p) => p.source === "manual",
+  ).length;
 
   const typeCounts = new Map<string, number>();
   for (const p of index.projects) {
@@ -160,9 +199,15 @@ export function renderStatusSummary(config: ProjectsConfig, index: ProjectsIndex
 
 export function renderHelpBanner(): string {
   return [
-    goldGlow(`╔══════════════════════════════════════════════════════════════════════╗`),
-    goldGlow(`║  📁 pi-projects — Inteligentní správce a @-našeptávač projektů      ║`),
-    goldGlow(`╚══════════════════════════════════════════════════════════════════════╝`),
+    goldGlow(
+      `╔══════════════════════════════════════════════════════════════════════╗`,
+    ),
+    goldGlow(
+      `║  📁 pi-projects — Inteligentní správce a @-našeptávač projektů      ║`,
+    ),
+    goldGlow(
+      `╚══════════════════════════════════════════════════════════════════════╝`,
+    ),
     `Automaticky rozpoznává projekty (Node/TS, Python, Rust, Go, C++, Git a další)`,
     `z neomezeného počtu kořenových složek a podsložek. Při psaní ${greenGlow("@")} v editoru`,
     `předsadí nalezené projekty na začátek nabídky pro okamžité vkládání a navigaci.`,
@@ -180,6 +225,8 @@ export function renderHelpBanner(): string {
     `  ${greenGlow("/projects status")}                — Zobrazit statistiky indexu a stavu @-našeptávače`,
     `  ${greenGlow("/projects help")}                  — Zobrazit tuto nápovědu v češtině`,
     "",
-    dimGlow(`Tip: Napište @ a začněte psát název projektu — projekt se nabídne jako první!`),
+    dimGlow(
+      `Tip: Napište @ a začněte psát název projektu — projekt se nabídne jako první!`,
+    ),
   ].join("\n");
 }

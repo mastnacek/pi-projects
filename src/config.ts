@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, normalize, resolve } from "node:path";
 import { homedir } from "node:os";
 import type { ProjectsConfig, ProjectsIndex } from "./types.js";

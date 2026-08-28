@@ -1,7 +1,13 @@
-import type { AutocompleteItem, AutocompleteProvider, AutocompleteSuggestions } from "@earendil-works/pi-tui";
+import type {
+  AutocompleteItem,
+  AutocompleteProvider,
+  AutocompleteSuggestions,
+} from "@earendil-works/pi-tui";
 import type { ProjectItem } from "./types.js";
 
-function extractAtToken(textBeforeCursor: string): { rawPrefix: string; query: string; isQuoted: boolean } | null {
+function extractAtToken(
+  textBeforeCursor: string,
+): { rawPrefix: string; query: string; isQuoted: boolean } | null {
   // Check unclosed quoted @"...
   const quoteMatch = textBeforeCursor.match(/(?:^|[ \t([{])(@"[^"\n]*)$/);
   if (quoteMatch) {
@@ -44,10 +50,15 @@ function scoreProject(proj: ProjectItem, query: string): number {
 export function filterProjectsForAutocomplete(
   projects: ProjectItem[],
   query: string,
-  maxResults = 20,
+  maxResults = 25,
 ): ProjectItem[] {
   if (!query) {
-    return projects.slice(0, maxResults);
+    const sorted = [...projects].sort((a, b) => {
+      if (a.pinned && !b.pinned) return -1;
+      if (!a.pinned && b.pinned) return 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
+    return sorted.slice(0, maxResults);
   }
 
   const scored = projects
@@ -58,10 +69,7 @@ export function filterProjectsForAutocomplete(
     if (a.project.pinned && !b.project.pinned) return -1;
     if (!a.project.pinned && b.project.pinned) return 1;
     if (b.score !== a.score) return b.score - a.score;
-    if (b.project.lastModified !== a.project.lastModified) {
-      return b.project.lastModified - a.project.lastModified;
-    }
-    return a.project.name.localeCompare(b.project.name);
+    return a.project.name.localeCompare(b.project.name, undefined, { sensitivity: "base" });
   });
 
   return scored.slice(0, maxResults).map((e) => e.project);
@@ -106,7 +114,11 @@ export function createProjectsAutocompleteProvider(
       }
 
       const allProjects = getProjects();
-      const matchedProjects = filterProjectsForAutocomplete(allProjects, atToken.query, 20);
+      const matchedProjects = filterProjectsForAutocomplete(
+        allProjects,
+        atToken.query,
+        20,
+      );
       const projectItems = matchedProjects.map((p) =>
         formatProjectAutocompleteItem(p, atToken.isQuoted),
       );
@@ -114,7 +126,12 @@ export function createProjectsAutocompleteProvider(
       // Call base provider to get existing file/folder completions
       let baseSuggestions: AutocompleteSuggestions | null = null;
       try {
-        baseSuggestions = await current.getSuggestions(lines, cursorLine, cursorCol, options);
+        baseSuggestions = await current.getSuggestions(
+          lines,
+          cursorLine,
+          cursorCol,
+          options,
+        );
       } catch {
         // Ignore base failure
       }
@@ -123,7 +140,11 @@ export function createProjectsAutocompleteProvider(
         return null;
       }
 
-      if (!baseSuggestions || !baseSuggestions.items || baseSuggestions.items.length === 0) {
+      if (
+        !baseSuggestions ||
+        !baseSuggestions.items ||
+        baseSuggestions.items.length === 0
+      ) {
         if (projectItems.length > 0) {
           return {
             items: projectItems,
@@ -135,7 +156,9 @@ export function createProjectsAutocompleteProvider(
 
       // Prepend project items, filtering out duplicates
       const seenValues = new Set(projectItems.map((i) => i.value));
-      const remainingBaseItems = baseSuggestions.items.filter((i) => !seenValues.has(i.value));
+      const remainingBaseItems = baseSuggestions.items.filter(
+        (i) => !seenValues.has(i.value),
+      );
 
       return {
         items: [...projectItems, ...remainingBaseItems],
@@ -144,11 +167,20 @@ export function createProjectsAutocompleteProvider(
     },
 
     applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-      return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      return current.applyCompletion(
+        lines,
+        cursorLine,
+        cursorCol,
+        item,
+        prefix,
+      );
     },
 
     shouldTriggerFileCompletion(lines, cursorLine, cursorCol) {
-      return current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ?? true;
+      return (
+        current.shouldTriggerFileCompletion?.(lines, cursorLine, cursorCol) ??
+        true
+      );
     },
   };
 }

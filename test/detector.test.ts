@@ -13,7 +13,11 @@ describe("Project Detector", () => {
     mkdirSync(projDir, { recursive: true });
     writeFileSync(
       join(projDir, "package.json"),
-      JSON.stringify({ name: "my-ts-app", description: "Test App", devDependencies: { typescript: "^5.0.0" } }),
+      JSON.stringify({
+        name: "my-ts-app",
+        description: "Test App",
+        devDependencies: { typescript: "^5.0.0" },
+      }),
     );
     writeFileSync(join(projDir, "tsconfig.json"), "{}");
 

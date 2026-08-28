@@ -30,10 +30,22 @@ describe("Project Scanner", () => {
     mkdirSync(ignoredMod, { recursive: true });
     mkdirSync(pyApp, { recursive: true });
 
-    writeFileSync(join(pluginA, "package.json"), JSON.stringify({ name: "plugin-a" }));
-    writeFileSync(join(pluginB, "Cargo.toml"), '[package]\nname = "plugin-b"\n');
-    writeFileSync(join(ignoredMod, "package.json"), JSON.stringify({ name: "ignored" }));
-    writeFileSync(join(pyApp, "pyproject.toml"), '[project]\nname = "py-app"\n');
+    writeFileSync(
+      join(pluginA, "package.json"),
+      JSON.stringify({ name: "plugin-a" }),
+    );
+    writeFileSync(
+      join(pluginB, "Cargo.toml"),
+      '[package]\nname = "plugin-b"\n',
+    );
+    writeFileSync(
+      join(ignoredMod, "package.json"),
+      JSON.stringify({ name: "ignored" }),
+    );
+    writeFileSync(
+      join(pyApp, "pyproject.toml"),
+      '[project]\nname = "py-app"\n',
+    );
 
     const config: ProjectsConfig = {
       roots: [testRoot],

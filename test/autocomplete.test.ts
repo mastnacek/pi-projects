@@ -51,6 +51,14 @@ describe("Autocomplete Provider", () => {
     assert.equal(rustRes[0]?.name, "mozek_rust");
   });
 
+  it("sorts projects alphabetically when query is empty (@)", () => {
+    const res = filterProjectsForAutocomplete(sampleProjects, "");
+    assert.equal(res.length, 3);
+    assert.equal(res[0]?.name, "Duproject");
+    assert.equal(res[1]?.name, "mozek_rust");
+    assert.equal(res[2]?.name, "pi-spai");
+  });
+
   it("formats AutocompleteItem with @ prefix and directory trailing slash", () => {
     const item = formatProjectAutocompleteItem(sampleProjects[0]!, false);
     assert.equal(item.value, "@D:/01_programovani/pi/plugins/pi-spai/");
