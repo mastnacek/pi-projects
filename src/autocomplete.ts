@@ -30,15 +30,17 @@ function extractAtToken(
 function scoreProject(proj: ProjectItem, query: string): number {
   if (!query) return 1;
 
-  const lowerQ = query.toLowerCase();
+  const lowerQ = query.toLowerCase().replace(/\\/g, "/");
   const lowerName = proj.name.toLowerCase();
-  const lowerPath = proj.path.toLowerCase();
-  const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase() : "";
+  const lowerPath = proj.path.toLowerCase().replace(/\\/g, "/");
+  const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase().replace(/\\/g, "/") : "";
   const lowerType = proj.type.toLowerCase();
   const lowerBranch = proj.git?.branch ? proj.git.branch.toLowerCase() : "";
 
-  if (lowerName === lowerQ) return 100;
-  if (lowerName.startsWith(lowerQ)) return 80;
+  // Exact path or name match
+  if (lowerPath === lowerQ || lowerPath + "/" === lowerQ || lowerName === lowerQ) return 100;
+  if (lowerName.startsWith(lowerQ)) return 85;
+  if (lowerPath.startsWith(lowerQ) || lowerQ.startsWith(lowerPath)) return 80;
   if (lowerRel && lowerRel.startsWith(lowerQ)) return 75;
   if (lowerBranch === lowerQ) return 70;
   if (lowerName.includes(lowerQ)) return 60;
@@ -103,13 +105,17 @@ export function formatProjectAutocompleteItem(
   const value = needsQuotes ? `@"${pathValue}"` : `@${pathValue}`;
   const displayLocation = proj.relativePath || proj.path;
 
-  const gitIcon = proj.git ? `${proj.git.statusEmoji} ` : "";
-  const gitSummary = proj.git?.statusSummary ? ` [${proj.git.statusSummary}]` : "";
+  const pinIcon = proj.pinned ? "📌 " : "";
+  const gitTag = proj.git?.branch
+    ? ` (${proj.git.branch} ${proj.git.statusEmoji})`
+    : proj.git?.statusEmoji
+      ? ` (${proj.git.statusEmoji})`
+      : "";
 
   return {
     value,
-    label: `📁 ${gitIcon}${proj.name}/`,
-    description: `[${proj.type}]${gitSummary} ${displayLocation} (${proj.fileCount} souborů)`,
+    label: `📁 ${pinIcon}${proj.name}/${gitTag}`,
+    description: `[${proj.type}] ${proj.git?.statusSummary ? `[${proj.git.statusSummary}] ` : ""}${displayLocation} (${proj.fileCount} souborů)`,
   };
 }
 
@@ -178,12 +184,28 @@ export function createProjectsAutocompleteProvider(
 
       // Prepend project items, filtering out duplicates
       const seenValues = new Set(projectItems.map((i) => i.value));
-      const remainingBaseItems = baseSuggestions.items.filter(
-        (i) => !seenValues.has(i.value),
-      );
+
+      // Decorate base suggestion items if they match known subprojects
+      const projectMap = new Map(allProjects.map((p) => [p.path.replace(/\\/g, "/"), p]));
+      const decoratedBaseItems = baseSuggestions.items
+        .filter((i) => !seenValues.has(i.value))
+        .map((item) => {
+          const itemVal = item.value.replace(/^@"?|"$/g, "").replace(/\\/g, "/");
+          const normVal = itemVal.endsWith("/") ? itemVal.slice(0, -1) : itemVal;
+          const matchSub = projectMap.get(normVal);
+          if (matchSub) {
+            const gitBadge = matchSub.git ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})` : "";
+            return {
+              ...item,
+              label: `📁 ${matchSub.name}/${gitBadge}`,
+              description: `[${matchSub.type}] ${matchSub.path}`,
+            };
+          }
+          return item;
+        });
 
       return {
-        items: [...projectItems, ...remainingBaseItems],
+        items: [...projectItems, ...decoratedBaseItems],
         prefix: baseSuggestions.prefix || atToken.rawPrefix,
       };
     },

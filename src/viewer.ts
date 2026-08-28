@@ -128,24 +128,36 @@ export function renderProjectDetail(p: ProjectItem): string {
     lines.push("");
     lines.push(`  ${goldGlow("Git Informace:")}`);
     lines.push(`    ${cyanGlow("Větev:")}        ${p.git.branch || "HEAD"}`);
-    lines.push(`    ${cyanGlow("Stav:")}         ${p.git.statusEmoji} ${p.git.clean ? greenGlow("Čistý repozitář") : coralGlow("Obsahuje změny")}`);
+    lines.push(
+      `    ${cyanGlow("Stav:")}         ${p.git.statusEmoji} ${p.git.clean ? greenGlow("Čistý repozitář") : coralGlow("Obsahuje změny")}`,
+    );
     if (p.git.statusSummary) {
       lines.push(`    ${cyanGlow("Přehled:")}      ${p.git.statusSummary}`);
     }
     if ((p.git.modifiedCount ?? 0) > 0) {
-      lines.push(`    ${cyanGlow("Změněno:")}      ${p.git.modifiedCount} souborů (📝)`);
+      lines.push(
+        `    ${cyanGlow("Změněno:")}      ${p.git.modifiedCount} souborů (📝)`,
+      );
     }
     if ((p.git.stagedCount ?? 0) > 0) {
-      lines.push(`    ${cyanGlow("Staged:")}       ${p.git.stagedCount} souborů (➕)`);
+      lines.push(
+        `    ${cyanGlow("Staged:")}       ${p.git.stagedCount} souborů (➕)`,
+      );
     }
     if ((p.git.untrackedCount ?? 0) > 0) {
-      lines.push(`    ${cyanGlow("Nesledováno:")}  ${p.git.untrackedCount} souborů (❓)`);
+      lines.push(
+        `    ${cyanGlow("Nesledováno:")}  ${p.git.untrackedCount} souborů (❓)`,
+      );
     }
     if ((p.git.aheadCount ?? 0) > 0) {
-      lines.push(`    ${cyanGlow("Neodesláno:")}   ${p.git.aheadCount} commitů (🚀 ahead)`);
+      lines.push(
+        `    ${cyanGlow("Neodesláno:")}   ${p.git.aheadCount} commitů (🚀 ahead)`,
+      );
     }
     if ((p.git.behindCount ?? 0) > 0) {
-      lines.push(`    ${cyanGlow("Ke stažení:")}   ${p.git.behindCount} commitů (📥 behind)`);
+      lines.push(
+        `    ${cyanGlow("Ke stažení:")}   ${p.git.behindCount} commitů (📥 behind)`,
+      );
     }
   }
 

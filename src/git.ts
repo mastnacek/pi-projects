@@ -22,7 +22,9 @@ export function getFastGitBranchFallback(gitDir: string): string | undefined {
   return undefined;
 }
 
-export async function readGitInfo(projectPath: string): Promise<GitInfo | null> {
+export async function readGitInfo(
+  projectPath: string,
+): Promise<GitInfo | null> {
   const gitDir = join(projectPath, ".git");
   if (!existsSync(gitDir)) {
     return null;
@@ -54,7 +56,11 @@ export async function readGitInfo(projectPath: string): Promise<GitInfo | null> 
         // Branch header line: ## main...origin/main [ahead 1, behind 2]
         const branchPart = line.slice(2).trim();
         const mainBranchMatch = branchPart.match(/^([^\s.]+)/);
-        if (mainBranchMatch && mainBranchMatch[1] && mainBranchMatch[1] !== "No") {
+        if (
+          mainBranchMatch &&
+          mainBranchMatch[1] &&
+          mainBranchMatch[1] !== "No"
+        ) {
           branch = mainBranchMatch[1];
         }
 

@@ -55,6 +55,7 @@ export function getDefaultConfig(): ProjectsConfig {
     roots: getDefaultRoots(),
     manualProjects: [],
     excludedPaths: [],
+    pinnedPaths: [],
     maxDepth: 5,
     prependToAtAutocomplete: true,
     rescanIntervalMinutes: 30,
@@ -78,6 +79,9 @@ export function loadProjectsConfig(): ProjectsConfig {
           : [],
         excludedPaths: Array.isArray(parsed.excludedPaths)
           ? parsed.excludedPaths.map((p: string) => normalizePath(p))
+          : [],
+        pinnedPaths: Array.isArray(parsed.pinnedPaths)
+          ? parsed.pinnedPaths.map((p: string) => normalizePath(p))
           : [],
         maxDepth: typeof parsed.maxDepth === "number" ? parsed.maxDepth : 5,
         prependToAtAutocomplete:

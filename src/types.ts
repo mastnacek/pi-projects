@@ -52,6 +52,7 @@ export interface ProjectsConfig {
   roots: string[];
   manualProjects: ProjectItem[];
   excludedPaths: string[];
+  pinnedPaths?: string[];
   maxDepth: number;
   prependToAtAutocomplete: boolean;
   rescanIntervalMinutes: number;

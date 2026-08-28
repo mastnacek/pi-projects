@@ -86,7 +86,7 @@ describe("Autocomplete Provider", () => {
       },
       false,
     );
-    assert.equal(itemWithGit.label, "📁 ✨ pi-spai/");
+    assert.equal(itemWithGit.label, "📁 pi-spai/ (main ✨)");
     assert.ok(itemWithGit.description?.includes("[main ✨]"));
 
     const quotedItem = formatProjectAutocompleteItem(

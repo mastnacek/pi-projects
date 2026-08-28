@@ -25,15 +25,14 @@ import {
   renderRootsTable,
   renderStatusSummary,
 } from "./src/viewer.js";
-import type {
-  ProjectsConfig,
-  ProjectsIndex,
-} from "./src/types.js";
+import type { ProjectsConfig, ProjectsIndex } from "./src/types.js";
 
 const SUBCOMMANDS_DOCS: Record<string, string> = {
   list: "zobrazit přehlednou tabulku všech projektů",
   show: "zobrazit detail projektu podle ID či názvu",
   sort: "nastavit řazení projektů (name = abecedně | mtime = podle data)",
+  pin: "připnout oblíbený projekt nahoru (<id|název>)",
+  unpin: "odepnout projekt (<id|název>)",
   add: "ručně přidat projekt do indexu (<cesta> [název])",
   remove: "odebrat projekt z indexu (<id|cesta>)",
   roots: "správa kořenových složek pro skenování (list | add | remove)",
@@ -436,6 +435,57 @@ export default function (pi: ExtensionAPI): void {
         break;
       }
 
+      case "pin": {
+        const target = rest.join(" ").trim().toLowerCase();
+        if (!target) {
+          ctx.ui.notify("Zadejte ID nebo název projektu: /projects pin <id|název>", "warning");
+          return;
+        }
+        const proj = currentIndex.projects.find(
+          (p) =>
+            p.id.toLowerCase() === target ||
+            p.name.toLowerCase() === target ||
+            p.path.toLowerCase().endsWith(target),
+        );
+        if (!proj) {
+          ctx.ui.notify(`Projekt "${target}" nebyl nalezen.`, "warning");
+          return;
+        }
+        const normP = normalizePath(proj.path);
+        currentConfig.pinnedPaths = currentConfig.pinnedPaths ?? [];
+        if (!currentConfig.pinnedPaths.includes(normP)) {
+          currentConfig.pinnedPaths.push(normP);
+          saveProjectsConfig(currentConfig);
+          await refreshProjectsIndex();
+        }
+        ctx.ui.notify(`Projekt ${greenGlow(proj.name)} byl připnut na 1. místo! (📌)`, "info");
+        break;
+      }
+
+      case "unpin": {
+        const target = rest.join(" ").trim().toLowerCase();
+        if (!target) {
+          ctx.ui.notify("Zadejte ID nebo název projektu: /projects unpin <id|název>", "warning");
+          return;
+        }
+        const proj = currentIndex.projects.find(
+          (p) =>
+            p.id.toLowerCase() === target ||
+            p.name.toLowerCase() === target ||
+            p.path.toLowerCase().endsWith(target),
+        );
+        if (!proj) {
+          ctx.ui.notify(`Projekt "${target}" nebyl nalezen.`, "warning");
+          return;
+        }
+        const normP = normalizePath(proj.path);
+        currentConfig.pinnedPaths = (currentConfig.pinnedPaths ?? []).filter((p) => p !== normP);
+        saveProjectsConfig(currentConfig);
+        await refreshProjectsIndex();
+        ctx.ui.notify(`Projekt ${greenGlow(proj.name)} byl odepnut.`, "info");
+        break;
+      }
+
       case "add": {
         const targetPath = rest[0];
         const customName = rest.slice(1).join(" ").trim() || undefined;
@@ -680,6 +730,36 @@ export default function (pi: ExtensionAPI): void {
       if (cmd === "remove" || cmd === "rm") {
         const items = currentIndex.projects.map((p) => ({
           value: `remove ${p.id}`,
+          label: `${p.name}`,
+          description: `[${p.type}] ${p.path}`,
+        }));
+        const filtered = items.filter(
+          (i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix) ||
+            i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
+        );
+        return filtered.length > 0 ? filtered : null;
+      }
+
+      // /projects pin <id|name>
+      if (cmd === "pin") {
+        const items = currentIndex.projects.map((p) => ({
+          value: `pin ${p.id}`,
+          label: `${p.name}`,
+          description: `[${p.type}] ${p.path}`,
+        }));
+        const filtered = items.filter(
+          (i) =>
+            i.value.toLowerCase().startsWith(normalizedPrefix) ||
+            i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
+        );
+        return filtered.length > 0 ? filtered : null;
+      }
+
+      // /projects unpin <id|name>
+      if (cmd === "unpin") {
+        const items = currentIndex.projects.map((p) => ({
+          value: `unpin ${p.id}`,
           label: `${p.name}`,
           description: `[${p.type}] ${p.path}`,
         }));
