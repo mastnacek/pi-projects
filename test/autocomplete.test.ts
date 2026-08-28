@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  abbreviateRootOrigin,
   filterProjectsForAutocomplete,
   formatProjectAutocompleteItem,
 } from "../src/autocomplete.js";
@@ -67,15 +68,30 @@ describe("Autocomplete Provider", () => {
     assert.equal(res[2]?.name, "pi-spai"); // mtime 1000
   });
 
-  it("formats AutocompleteItem with @ prefix and directory trailing slash", () => {
-    const item = formatProjectAutocompleteItem(sampleProjects[0]!, false);
+  it("abbreviates root origin path", () => {
+    assert.equal(abbreviateRootOrigin("D:/01_programovani"), "D:01_prog");
+    assert.equal(abbreviateRootOrigin("C:/Users/jaroslav/projects"), "C:projects");
+    assert.equal(abbreviateRootOrigin("D:/my-big-workspace"), "D:my-big-work");
+    assert.equal(abbreviateRootOrigin(undefined, "manual"), "manual");
+  });
+
+  it("formats AutocompleteItem with @ prefix, root origin tag, and directory trailing slash", () => {
+    const item = formatProjectAutocompleteItem(
+      {
+        ...sampleProjects[0]!,
+        rootPath: "D:/01_programovani",
+      },
+      false,
+    );
     assert.equal(item.value, "@D:/01_programovani/pi/plugins/pi-spai/");
-    assert.equal(item.label, "📁 pi-spai/");
+    assert.equal(item.label, "📁 pi-spai/ [D:01_prog]");
+    assert.ok(item.description?.includes("[D:01_prog]"));
     assert.ok(item.description?.includes("[TypeScript]"));
 
     const itemWithGit = formatProjectAutocompleteItem(
       {
         ...sampleProjects[0]!,
+        rootPath: "D:/01_programovani",
         git: {
           isGit: true,
           branch: "main",
@@ -86,7 +102,8 @@ describe("Autocomplete Provider", () => {
       },
       false,
     );
-    assert.equal(itemWithGit.label, "📁 pi-spai/ (main ✨)");
+    assert.equal(itemWithGit.label, "📁 pi-spai/ (main ✨) [D:01_prog]");
+    assert.ok(itemWithGit.description?.includes("[D:01_prog]"));
     assert.ok(itemWithGit.description?.includes("[main ✨]"));
 
     const quotedItem = formatProjectAutocompleteItem(

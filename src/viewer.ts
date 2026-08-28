@@ -4,6 +4,7 @@ import type {
   ProjectsIndex,
   ProjectType,
 } from "./types.js";
+import { abbreviateRootOrigin } from "./autocomplete.js";
 
 export const RESET = "\x1b[0m";
 export const BOLD = "\x1b[1m";
@@ -73,27 +74,28 @@ export function renderProjectTable(projects: ProjectItem[]): string {
     ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(`(${projects.length} položek)`)}`,
   );
   lines.push(
-    ` ${dimGlow("│")} ${dimGlow("Git / Název projektu".padEnd(28))} ${dimGlow("Typ".padEnd(16))} ${dimGlow("Git Stav".padEnd(18))} ${dimGlow("Soubory".padEnd(9))} ${dimGlow("Cesta")}`,
+    ` ${dimGlow("│")} ${dimGlow("Git / Název projektu".padEnd(26))} ${dimGlow("Kořen".padEnd(12))} ${dimGlow("Typ".padEnd(16))} ${dimGlow("Git Stav".padEnd(16))} ${dimGlow("Soubory".padEnd(9))} ${dimGlow("Cesta")}`,
   );
-  lines.push(` ${dimGlow("├" + "─".repeat(88))}`);
+  lines.push(` ${dimGlow("├" + "─".repeat(96))}`);
 
   for (const p of projects) {
-    const icon = p.source === "manual" ? "📌" : "📁";
+    const icon = p.pinned ? "📌" : p.source === "manual" ? "📎" : "📁";
     const gitEmoji = p.git ? `${p.git.statusEmoji} ` : "";
-    const namePart = `${icon} ${gitEmoji}${p.name}`.padEnd(28);
+    const namePart = `${icon} ${gitEmoji}${p.name}`.padEnd(26);
+    const rootAbbrev = `[${abbreviateRootOrigin(p.rootPath, p.source)}]`.padEnd(12);
     const typePart = renderProjectTypeBadge(p.type).padEnd(25);
     const gitPart = p.git?.statusSummary
-      ? cyanGlow(p.git.statusSummary.padEnd(18))
-      : dimGlow("-".padEnd(18));
+      ? cyanGlow(p.git.statusSummary.padEnd(16))
+      : dimGlow("-".padEnd(16));
     const filesPart = `${p.fileCount}`.padStart(7).padEnd(9);
     const pathPart = dimGlow(p.relativePath ? `.../${p.relativePath}` : p.path);
 
     lines.push(
-      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
+      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${violetGlow(rootAbbrev)} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
     );
   }
 
-  lines.push(` ${dimGlow("└" + "─".repeat(88))}`);
+  lines.push(` ${dimGlow("└" + "─".repeat(96))}`);
   return lines.join("\n");
 }
 
@@ -112,7 +114,8 @@ export function renderProjectDetail(p: ProjectItem): string {
   lines.push(`  ${cyanGlow("ID:")}            ${p.id}`);
   lines.push(`  ${cyanGlow("Cesta:")}         ${p.path}`);
   if (p.rootPath) {
-    lines.push(`  ${cyanGlow("Kořen:")}         ${p.rootPath}`);
+    const shortRoot = abbreviateRootOrigin(p.rootPath, p.source);
+    lines.push(`  ${cyanGlow("Kořen:")}         ${p.rootPath} ${violetGlow(`[${shortRoot}]`)}`);
   }
   if (p.relativePath) {
     lines.push(`  ${cyanGlow("Rel. cesta:")}    ${p.relativePath}`);

@@ -5,6 +5,36 @@ import type {
 } from "@earendil-works/pi-tui";
 import type { ProjectItem, ProjectSortBy } from "./types.js";
 
+export function abbreviateRootOrigin(rootPath?: string, source?: string): string {
+  if (!rootPath) {
+    return source === "manual" ? "manual" : "root";
+  }
+
+  const norm = rootPath.replace(/\\/g, "/").replace(/\/+$/, "");
+  const driveMatch = norm.match(/^([A-Za-z]:)/);
+  const drive = driveMatch ? driveMatch[1] : "";
+  const parts = norm.split("/").filter(Boolean);
+  const lastFolder = parts[parts.length - 1] || "";
+
+  let shortFolder = lastFolder;
+  if (shortFolder.length > 9) {
+    if (shortFolder.includes("_")) {
+      const segs = shortFolder.split("_");
+      shortFolder = segs.map((s) => s.slice(0, 4)).join("_");
+    } else if (shortFolder.includes("-")) {
+      const segs = shortFolder.split("-");
+      shortFolder = segs.map((s) => s.slice(0, 4)).join("-");
+    } else {
+      shortFolder = `${shortFolder.slice(0, 7)}..`;
+    }
+  }
+
+  if (drive) {
+    return `${drive}${shortFolder}`;
+  }
+  return shortFolder || "root";
+}
+
 function extractAtToken(
   textBeforeCursor: string,
 ): { rawPrefix: string; query: string; isQuoted: boolean } | null {
@@ -33,19 +63,12 @@ function scoreProject(proj: ProjectItem, query: string): number {
   const lowerQ = query.toLowerCase().replace(/\\/g, "/");
   const lowerName = proj.name.toLowerCase();
   const lowerPath = proj.path.toLowerCase().replace(/\\/g, "/");
-  const lowerRel = proj.relativePath
-    ? proj.relativePath.toLowerCase().replace(/\\/g, "/")
-    : "";
+  const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase().replace(/\\/g, "/") : "";
   const lowerType = proj.type.toLowerCase();
   const lowerBranch = proj.git?.branch ? proj.git.branch.toLowerCase() : "";
 
   // Exact path or name match
-  if (
-    lowerPath === lowerQ ||
-    lowerPath + "/" === lowerQ ||
-    lowerName === lowerQ
-  )
-    return 100;
+  if (lowerPath === lowerQ || lowerPath + "/" === lowerQ || lowerName === lowerQ) return 100;
   if (lowerName.startsWith(lowerQ)) return 85;
   if (lowerPath.startsWith(lowerQ) || lowerQ.startsWith(lowerPath)) return 80;
   if (lowerRel && lowerRel.startsWith(lowerQ)) return 75;
@@ -98,9 +121,7 @@ export function filterProjectsForAutocomplete(
     });
   });
 
-  return maxResults
-    ? scored.slice(0, maxResults).map((e) => e.project)
-    : scored.map((e) => e.project);
+  return maxResults ? scored.slice(0, maxResults).map((e) => e.project) : scored.map((e) => e.project);
 }
 
 export function formatProjectAutocompleteItem(
@@ -121,10 +142,12 @@ export function formatProjectAutocompleteItem(
       ? ` (${proj.git.statusEmoji})`
       : "";
 
+  const rootAbbrev = abbreviateRootOrigin(proj.rootPath, proj.source);
+
   return {
     value,
-    label: `📁 ${pinIcon}${proj.name}/${gitTag}`,
-    description: `[${proj.type}] ${proj.git?.statusSummary ? `[${proj.git.statusSummary}] ` : ""}${displayLocation} (${proj.fileCount} souborů)`,
+    label: `📁 ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`,
+    description: `[${rootAbbrev}] [${proj.type}] ${proj.git?.statusSummary ? `[${proj.git.statusSummary}] ` : ""}${displayLocation} (${proj.fileCount} souborů)`,
   };
 }
 
@@ -201,21 +224,16 @@ export function createProjectsAutocompleteProvider(
       const decoratedBaseItems = baseSuggestions.items
         .filter((i) => !seenValues.has(i.value))
         .map((item) => {
-          const itemVal = item.value
-            .replace(/^@"?|"$/g, "")
-            .replace(/\\/g, "/");
-          const normVal = itemVal.endsWith("/")
-            ? itemVal.slice(0, -1)
-            : itemVal;
+          const itemVal = item.value.replace(/^@"?|"$/g, "").replace(/\\/g, "/");
+          const normVal = itemVal.endsWith("/") ? itemVal.slice(0, -1) : itemVal;
           const matchSub = projectMap.get(normVal);
           if (matchSub) {
-            const gitBadge = matchSub.git
-              ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})`
-              : "";
+            const gitBadge = matchSub.git ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})` : "";
+            const rootAbbrev = abbreviateRootOrigin(matchSub.rootPath, matchSub.source);
             return {
               ...item,
-              label: `📁 ${matchSub.name}/${gitBadge}`,
-              description: `[${matchSub.type}] ${matchSub.path}`,
+              label: `📁 ${matchSub.name}/${gitBadge} [${rootAbbrev}]`,
+              description: `[${rootAbbrev}] [${matchSub.type}] ${matchSub.path}`,
             };
           }
           return item;
