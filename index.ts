@@ -438,7 +438,10 @@ export default function (pi: ExtensionAPI): void {
       case "pin": {
         const target = rest.join(" ").trim().toLowerCase();
         if (!target) {
-          ctx.ui.notify("Zadejte ID nebo název projektu: /projects pin <id|název>", "warning");
+          ctx.ui.notify(
+            "Zadejte ID nebo název projektu: /projects pin <id|název>",
+            "warning",
+          );
           return;
         }
         const proj = currentIndex.projects.find(
@@ -458,14 +461,20 @@ export default function (pi: ExtensionAPI): void {
           saveProjectsConfig(currentConfig);
           await refreshProjectsIndex();
         }
-        ctx.ui.notify(`Projekt ${greenGlow(proj.name)} byl připnut na 1. místo! (📌)`, "info");
+        ctx.ui.notify(
+          `Projekt ${greenGlow(proj.name)} byl připnut na 1. místo! (📌)`,
+          "info",
+        );
         break;
       }
 
       case "unpin": {
         const target = rest.join(" ").trim().toLowerCase();
         if (!target) {
-          ctx.ui.notify("Zadejte ID nebo název projektu: /projects unpin <id|název>", "warning");
+          ctx.ui.notify(
+            "Zadejte ID nebo název projektu: /projects unpin <id|název>",
+            "warning",
+          );
           return;
         }
         const proj = currentIndex.projects.find(
@@ -479,7 +488,9 @@ export default function (pi: ExtensionAPI): void {
           return;
         }
         const normP = normalizePath(proj.path);
-        currentConfig.pinnedPaths = (currentConfig.pinnedPaths ?? []).filter((p) => p !== normP);
+        currentConfig.pinnedPaths = (currentConfig.pinnedPaths ?? []).filter(
+          (p) => p !== normP,
+        );
         saveProjectsConfig(currentConfig);
         await refreshProjectsIndex();
         ctx.ui.notify(`Projekt ${greenGlow(proj.name)} byl odepnut.`, "info");

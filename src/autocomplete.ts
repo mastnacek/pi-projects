@@ -33,12 +33,19 @@ function scoreProject(proj: ProjectItem, query: string): number {
   const lowerQ = query.toLowerCase().replace(/\\/g, "/");
   const lowerName = proj.name.toLowerCase();
   const lowerPath = proj.path.toLowerCase().replace(/\\/g, "/");
-  const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase().replace(/\\/g, "/") : "";
+  const lowerRel = proj.relativePath
+    ? proj.relativePath.toLowerCase().replace(/\\/g, "/")
+    : "";
   const lowerType = proj.type.toLowerCase();
   const lowerBranch = proj.git?.branch ? proj.git.branch.toLowerCase() : "";
 
   // Exact path or name match
-  if (lowerPath === lowerQ || lowerPath + "/" === lowerQ || lowerName === lowerQ) return 100;
+  if (
+    lowerPath === lowerQ ||
+    lowerPath + "/" === lowerQ ||
+    lowerName === lowerQ
+  )
+    return 100;
   if (lowerName.startsWith(lowerQ)) return 85;
   if (lowerPath.startsWith(lowerQ) || lowerQ.startsWith(lowerPath)) return 80;
   if (lowerRel && lowerRel.startsWith(lowerQ)) return 75;
@@ -54,7 +61,7 @@ function scoreProject(proj: ProjectItem, query: string): number {
 export function filterProjectsForAutocomplete(
   projects: ProjectItem[],
   query: string,
-  maxResults = 25,
+  maxResults?: number,
   sortBy: ProjectSortBy = "name",
 ): ProjectItem[] {
   const isMtime = sortBy === "mtime" || sortBy === "date";
@@ -70,7 +77,7 @@ export function filterProjectsForAutocomplete(
       }
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
-    return sorted.slice(0, maxResults);
+    return maxResults ? sorted.slice(0, maxResults) : sorted;
   }
 
   const scored = projects
@@ -91,7 +98,7 @@ export function filterProjectsForAutocomplete(
     });
   });
 
-  return scored.slice(0, maxResults).map((e) => e.project);
+  return maxResults ? scored.slice(0, maxResults).map((e) => e.project) : scored.map((e) => e.project);
 }
 
 export function formatProjectAutocompleteItem(
@@ -144,7 +151,7 @@ export function createProjectsAutocompleteProvider(
       const matchedProjects = filterProjectsForAutocomplete(
         allProjects,
         atToken.query,
-        25,
+        undefined,
         getSortBy(),
       );
       const projectItems = matchedProjects.map((p) =>
@@ -186,15 +193,23 @@ export function createProjectsAutocompleteProvider(
       const seenValues = new Set(projectItems.map((i) => i.value));
 
       // Decorate base suggestion items if they match known subprojects
-      const projectMap = new Map(allProjects.map((p) => [p.path.replace(/\\/g, "/"), p]));
+      const projectMap = new Map(
+        allProjects.map((p) => [p.path.replace(/\\/g, "/"), p]),
+      );
       const decoratedBaseItems = baseSuggestions.items
         .filter((i) => !seenValues.has(i.value))
         .map((item) => {
-          const itemVal = item.value.replace(/^@"?|"$/g, "").replace(/\\/g, "/");
-          const normVal = itemVal.endsWith("/") ? itemVal.slice(0, -1) : itemVal;
+          const itemVal = item.value
+            .replace(/^@"?|"$/g, "")
+            .replace(/\\/g, "/");
+          const normVal = itemVal.endsWith("/")
+            ? itemVal.slice(0, -1)
+            : itemVal;
           const matchSub = projectMap.get(normVal);
           if (matchSub) {
-            const gitBadge = matchSub.git ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})` : "";
+            const gitBadge = matchSub.git
+              ? ` (${matchSub.git.branch} ${matchSub.git.statusEmoji})`
+              : "";
             return {
               ...item,
               label: `📁 ${matchSub.name}/${gitBadge}`,

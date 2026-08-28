@@ -153,7 +153,9 @@ export async function scanAllRoots(
 
   const projectList = Array.from(allProjects.values());
 
-  const pinnedSet = new Set((config.pinnedPaths ?? []).map((p) => normalizePath(p)));
+  const pinnedSet = new Set(
+    (config.pinnedPaths ?? []).map((p) => normalizePath(p)),
+  );
 
   // Enrich with Git repository status in parallel and apply pinned flags
   const gitTasks: Promise<void>[] = [];
