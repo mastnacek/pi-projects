@@ -98,7 +98,9 @@ export function filterProjectsForAutocomplete(
     });
   });
 
-  return maxResults ? scored.slice(0, maxResults).map((e) => e.project) : scored.map((e) => e.project);
+  return maxResults
+    ? scored.slice(0, maxResults).map((e) => e.project)
+    : scored.map((e) => e.project);
 }
 
 export function formatProjectAutocompleteItem(
