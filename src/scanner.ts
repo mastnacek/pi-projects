@@ -7,6 +7,7 @@ import {
   IGNORED_SCAN_DIRS,
 } from "./detector.js";
 import { normalizePath } from "./config.js";
+import { readGitInfo } from "./git.js";
 
 interface ScanContext {
   signal?: AbortSignal;
@@ -150,10 +151,39 @@ export async function scanAllRoots(
     allProjects.delete(normalizePath(excluded));
   }
 
-  // Sort projects: pinned first, then alphabetical by name asc
-  const sorted = Array.from(allProjects.values()).sort((a, b) => {
+  const projectList = Array.from(allProjects.values());
+
+  // Enrich with Git repository status in parallel
+  const gitTasks: Promise<void>[] = [];
+  for (const project of projectList) {
+    gitTasks.push(
+      (async () => {
+        if (signal?.aborted) return;
+        try {
+          const git = await readGitInfo(project.path);
+          if (git) {
+            project.git = git;
+          }
+        } catch {
+          // Non-fatal
+        }
+      })(),
+    );
+  }
+  await Promise.all(gitTasks);
+
+  const sortBy =
+    config.sortBy === "mtime" || config.sortBy === "date" ? "mtime" : "name";
+
+  // Sort projects: pinned first, then by configured sortBy
+  const sorted = projectList.sort((a, b) => {
     if (a.pinned && !b.pinned) return -1;
     if (!a.pinned && b.pinned) return 1;
+    if (sortBy === "mtime") {
+      if (b.lastModified !== a.lastModified) {
+        return b.lastModified - a.lastModified;
+      }
+    }
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
   });
 

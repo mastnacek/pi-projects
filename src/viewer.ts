@@ -73,26 +73,27 @@ export function renderProjectTable(projects: ProjectItem[]): string {
     ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(`(${projects.length} položek)`)}`,
   );
   lines.push(
-    ` ${dimGlow("│")} ${dimGlow("ID / Název".padEnd(26))} ${dimGlow("Typ".padEnd(16))} ${dimGlow("Soubory".padEnd(9))} ${dimGlow("Zdroj".padEnd(8))} ${dimGlow("Cesta")}`,
+    ` ${dimGlow("│")} ${dimGlow("Git / Název projektu".padEnd(28))} ${dimGlow("Typ".padEnd(16))} ${dimGlow("Git Stav".padEnd(18))} ${dimGlow("Soubory".padEnd(9))} ${dimGlow("Cesta")}`,
   );
-  lines.push(` ${dimGlow("├" + "─".repeat(78))}`);
+  lines.push(` ${dimGlow("├" + "─".repeat(88))}`);
 
   for (const p of projects) {
     const icon = p.source === "manual" ? "📌" : "📁";
-    const namePart = `${icon} ${p.name}`.padEnd(26);
+    const gitEmoji = p.git ? `${p.git.statusEmoji} ` : "";
+    const namePart = `${icon} ${gitEmoji}${p.name}`.padEnd(28);
     const typePart = renderProjectTypeBadge(p.type).padEnd(25);
+    const gitPart = p.git?.statusSummary
+      ? cyanGlow(p.git.statusSummary.padEnd(18))
+      : dimGlow("-".padEnd(18));
     const filesPart = `${p.fileCount}`.padStart(7).padEnd(9);
-    const srcPart = (
-      p.source === "manual" ? pinkGlow("ruční") : cyanGlow("auto")
-    ).padEnd(17);
     const pathPart = dimGlow(p.relativePath ? `.../${p.relativePath}` : p.path);
 
     lines.push(
-      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${typePart} ${filesPart} ${srcPart} ${pathPart}`,
+      ` ${dimGlow("│")} ${cyanGlow(namePart)} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
     );
   }
 
-  lines.push(` ${dimGlow("└" + "─".repeat(78))}`);
+  lines.push(` ${dimGlow("└" + "─".repeat(88))}`);
   return lines.join("\n");
 }
 
@@ -101,8 +102,9 @@ export function renderProjectDetail(p: ProjectItem): string {
   lines.push(
     goldGlow(`═══════════════════════════════════════════════════════════════`),
   );
+  const gitIcon = p.git ? `${p.git.statusEmoji} ` : "";
   lines.push(
-    `  📁 ${goldGlow(p.name)}  ${renderProjectTypeBadge(p.type)}  ${p.source === "manual" ? pinkGlow("[Ručně přidáno]") : cyanGlow("[Auto-detekce]")}`,
+    `  📁 ${gitIcon}${goldGlow(p.name)}  ${renderProjectTypeBadge(p.type)}  ${p.source === "manual" ? pinkGlow("[Ručně přidáno]") : cyanGlow("[Auto-detekce]")}`,
   );
   lines.push(
     goldGlow(`═══════════════════════════════════════════════════════════════`),
@@ -121,6 +123,32 @@ export function renderProjectDetail(p: ProjectItem): string {
   lines.push(`  ${cyanGlow("Značky:")}        ${p.markers.join(", ") || "-"}`);
   lines.push(`  ${cyanGlow("Počet souborů:")} ${p.fileCount}`);
   lines.push(`  ${cyanGlow("Poslední změna:")} ${formatDate(p.lastModified)}`);
+
+  if (p.git) {
+    lines.push("");
+    lines.push(`  ${goldGlow("Git Informace:")}`);
+    lines.push(`    ${cyanGlow("Větev:")}        ${p.git.branch || "HEAD"}`);
+    lines.push(`    ${cyanGlow("Stav:")}         ${p.git.statusEmoji} ${p.git.clean ? greenGlow("Čistý repozitář") : coralGlow("Obsahuje změny")}`);
+    if (p.git.statusSummary) {
+      lines.push(`    ${cyanGlow("Přehled:")}      ${p.git.statusSummary}`);
+    }
+    if ((p.git.modifiedCount ?? 0) > 0) {
+      lines.push(`    ${cyanGlow("Změněno:")}      ${p.git.modifiedCount} souborů (📝)`);
+    }
+    if ((p.git.stagedCount ?? 0) > 0) {
+      lines.push(`    ${cyanGlow("Staged:")}       ${p.git.stagedCount} souborů (➕)`);
+    }
+    if ((p.git.untrackedCount ?? 0) > 0) {
+      lines.push(`    ${cyanGlow("Nesledováno:")}  ${p.git.untrackedCount} souborů (❓)`);
+    }
+    if ((p.git.aheadCount ?? 0) > 0) {
+      lines.push(`    ${cyanGlow("Neodesláno:")}   ${p.git.aheadCount} commitů (🚀 ahead)`);
+    }
+    if ((p.git.behindCount ?? 0) > 0) {
+      lines.push(`    ${cyanGlow("Ke stažení:")}   ${p.git.behindCount} commitů (📥 behind)`);
+    }
+  }
+
   lines.push(
     goldGlow(`═══════════════════════════════════════════════════════════════`),
   );
@@ -173,13 +201,27 @@ export function renderStatusSummary(
   ).length;
 
   const typeCounts = new Map<string, number>();
+  let gitCount = 0;
+  let cleanGitCount = 0;
+  let dirtyGitCount = 0;
+
   for (const p of index.projects) {
     typeCounts.set(p.type, (typeCounts.get(p.type) ?? 0) + 1);
+    if (p.git) {
+      gitCount++;
+      if (p.git.clean) cleanGitCount++;
+      else dirtyGitCount++;
+    }
   }
 
   const typeSummary = Array.from(typeCounts.entries())
     .map(([t, c]) => `${t}: ${c}`)
     .join(" | ");
+
+  const sortDesc =
+    config.sortBy === "mtime" || config.sortBy === "date"
+      ? "Podle data změny (nejnovější)"
+      : "Abecedně (A-Z)";
 
   const lines: string[] = [
     goldGlow(`⚡ pi-projects — Přehled stavu indexu projektů`),
@@ -187,6 +229,8 @@ export function renderStatusSummary(
     `  ${cyanGlow("Celkem projektů:")}     ${goldGlow(String(total))} (${autoCount} detekováno, ${manualCount} ručně)`,
     `  ${cyanGlow("Kořenové složky:")}     ${config.roots.length} (${config.roots.join(", ") || "-"})`,
     `  ${cyanGlow("Hloubka prohledávání:")} ${config.maxDepth} úrovní`,
+    `  ${cyanGlow("Výchozí řazení:")}      ${goldGlow(sortDesc)}`,
+    `  ${cyanGlow("Git repozitáře:")}      ${gitCount} celkem (${greenGlow(`${cleanGitCount} čistých ✨`)}, ${coralGlow(`${dirtyGitCount} se změnami 📝`)})`,
     `  ${cyanGlow("@ našeptávání:")}        ${config.prependToAtAutocomplete ? greenGlow("Aktivní") : coralGlow("Vypnuto")}`,
     `  ${cyanGlow("Poslední aktualizace:")} ${formatDate(index.lastUpdated)}`,
     "",
@@ -210,23 +254,33 @@ export function renderHelpBanner(): string {
     ),
     `Automaticky rozpoznává projekty (Node/TS, Python, Rust, Go, C++, Git a další)`,
     `z neomezeného počtu kořenových složek a podsložek. Při psaní ${greenGlow("@")} v editoru`,
-    `předsadí nalezené projekty na začátek nabídky pro okamžité vkládání a navigaci.`,
+    `předsadí nalezené projekty na začátek nabídky včetně stavových Git emotikonů.`,
     "",
     cyanGlow(`Příkazy rozhraní (/projects nebo /proj):`),
-    `  ${greenGlow("/projects list")}                  — Zobrazit přehlednou tabulku všech projektů`,
-    `  ${greenGlow("/projects show <id|název>")}       — Zobrazit detail konkrétního projektu`,
+    `  ${greenGlow("/projects list")}                  — Zobrazit přehlednou tabulku všech projektů a Git stavů`,
+    `  ${greenGlow("/projects show <id|název>")}       — Zobrazit detail projektu včetně kompletní Git diagnostiky`,
+    `  ${greenGlow("/projects sort [name|mtime]")}     — Nastavit výchozí řazení (name = abecedně, mtime = podle data)`,
     `  ${greenGlow("/projects add <cesta> [název]")}   — Ručně přidat projekt do indexu`,
     `  ${greenGlow("/projects remove <id|cesta>")}     — Odebrat projekt z indexu`,
     `  ${greenGlow("/projects roots")}                 — Zobrazit seznam kořenových složek`,
     `  ${greenGlow("/projects roots add <cesta>")}     — Přidat novou kořenovou složku pro skenování`,
     `  ${greenGlow("/projects roots remove <cesta>")}  — Odebrat kořenovou složku`,
-    `  ${greenGlow("/projects scan")}                  — Spustit okamžité přegenerování indexu`,
+    `  ${greenGlow("/projects scan")}                  — Spustit okamžité přegenerování indexu a Git stavů`,
     `  ${greenGlow("/projects search <dotaz>")}        — Vyhledávat v projektech podle názvu či cesty`,
-    `  ${greenGlow("/projects status")}                — Zobrazit statistiky indexu a stavu @-našeptávače`,
+    `  ${greenGlow("/projects status")}                — Zobrazit statistiky indexu a Git stavu`,
     `  ${greenGlow("/projects help")}                  — Zobrazit tuto nápovědu v češtině`,
     "",
+    goldGlow(`Git Stavové Emotikony:`),
+    `  ${greenGlow("✨")} Čistý repozitář (up-to-date)`,
+    `  ${coralGlow("📝")} Změněné / neuložené soubory (modified)`,
+    `  ${greenGlow("➕")} Připravené změny ke commitu (staged)`,
+    `  ${dimGlow("❓")} Nové nesledované soubory (untracked)`,
+    `  ${violetGlow("🚀")} Neodeslané commity na server (ahead)`,
+    `  ${cyanGlow("📥")} Nové commity na vzdáleném serveru (behind)`,
+    `  ${pinkGlow("⚡")} Rozvětvení / divergence (ahead & behind)`,
+    "",
     dimGlow(
-      `Tip: Napište @ a začněte psát název projektu — projekt se nabídne jako první!`,
+      `Tip: Napište @ v editoru — projekty se nabídnou se stavem Git repozitáře!`,
     ),
   ].join("\n");
 }

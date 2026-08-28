@@ -3,7 +3,7 @@ import type {
   AutocompleteProvider,
   AutocompleteSuggestions,
 } from "@earendil-works/pi-tui";
-import type { ProjectItem } from "./types.js";
+import type { ProjectItem, ProjectSortBy } from "./types.js";
 
 function extractAtToken(
   textBeforeCursor: string,
@@ -35,10 +35,12 @@ function scoreProject(proj: ProjectItem, query: string): number {
   const lowerPath = proj.path.toLowerCase();
   const lowerRel = proj.relativePath ? proj.relativePath.toLowerCase() : "";
   const lowerType = proj.type.toLowerCase();
+  const lowerBranch = proj.git?.branch ? proj.git.branch.toLowerCase() : "";
 
   if (lowerName === lowerQ) return 100;
   if (lowerName.startsWith(lowerQ)) return 80;
   if (lowerRel && lowerRel.startsWith(lowerQ)) return 75;
+  if (lowerBranch === lowerQ) return 70;
   if (lowerName.includes(lowerQ)) return 60;
   if (lowerRel && lowerRel.includes(lowerQ)) return 50;
   if (lowerPath.includes(lowerQ)) return 40;
@@ -51,11 +53,19 @@ export function filterProjectsForAutocomplete(
   projects: ProjectItem[],
   query: string,
   maxResults = 25,
+  sortBy: ProjectSortBy = "name",
 ): ProjectItem[] {
+  const isMtime = sortBy === "mtime" || sortBy === "date";
+
   if (!query) {
     const sorted = [...projects].sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
+      if (isMtime) {
+        if (b.lastModified !== a.lastModified) {
+          return b.lastModified - a.lastModified;
+        }
+      }
       return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
     });
     return sorted.slice(0, maxResults);
@@ -69,7 +79,14 @@ export function filterProjectsForAutocomplete(
     if (a.project.pinned && !b.project.pinned) return -1;
     if (!a.project.pinned && b.project.pinned) return 1;
     if (b.score !== a.score) return b.score - a.score;
-    return a.project.name.localeCompare(b.project.name, undefined, { sensitivity: "base" });
+    if (isMtime) {
+      if (b.project.lastModified !== a.project.lastModified) {
+        return b.project.lastModified - a.project.lastModified;
+      }
+    }
+    return a.project.name.localeCompare(b.project.name, undefined, {
+      sensitivity: "base",
+    });
   });
 
   return scored.slice(0, maxResults).map((e) => e.project);
@@ -86,10 +103,13 @@ export function formatProjectAutocompleteItem(
   const value = needsQuotes ? `@"${pathValue}"` : `@${pathValue}`;
   const displayLocation = proj.relativePath || proj.path;
 
+  const gitIcon = proj.git ? `${proj.git.statusEmoji} ` : "";
+  const gitSummary = proj.git?.statusSummary ? ` [${proj.git.statusSummary}]` : "";
+
   return {
     value,
-    label: `📁 ${proj.name}/`,
-    description: `[${proj.type}] ${displayLocation} (${proj.fileCount} files)`,
+    label: `📁 ${gitIcon}${proj.name}/`,
+    description: `[${proj.type}]${gitSummary} ${displayLocation} (${proj.fileCount} souborů)`,
   };
 }
 
@@ -97,6 +117,7 @@ export function createProjectsAutocompleteProvider(
   current: AutocompleteProvider,
   getProjects: () => ProjectItem[],
   isEnabled: () => boolean,
+  getSortBy: () => ProjectSortBy = () => "name",
 ): AutocompleteProvider {
   return {
     async getSuggestions(
@@ -117,7 +138,8 @@ export function createProjectsAutocompleteProvider(
       const matchedProjects = filterProjectsForAutocomplete(
         allProjects,
         atToken.query,
-        20,
+        25,
+        getSortBy(),
       );
       const projectItems = matchedProjects.map((p) =>
         formatProjectAutocompleteItem(p, atToken.isQuoted),

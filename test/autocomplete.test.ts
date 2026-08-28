@@ -52,11 +52,19 @@ describe("Autocomplete Provider", () => {
   });
 
   it("sorts projects alphabetically when query is empty (@)", () => {
-    const res = filterProjectsForAutocomplete(sampleProjects, "");
+    const res = filterProjectsForAutocomplete(sampleProjects, "", 25, "name");
     assert.equal(res.length, 3);
     assert.equal(res[0]?.name, "Duproject");
     assert.equal(res[1]?.name, "mozek_rust");
     assert.equal(res[2]?.name, "pi-spai");
+  });
+
+  it("sorts projects by modification date when sortBy is mtime", () => {
+    const res = filterProjectsForAutocomplete(sampleProjects, "", 25, "mtime");
+    assert.equal(res.length, 3);
+    assert.equal(res[0]?.name, "mozek_rust"); // mtime 2000
+    assert.equal(res[1]?.name, "Duproject"); // mtime 1500
+    assert.equal(res[2]?.name, "pi-spai"); // mtime 1000
   });
 
   it("formats AutocompleteItem with @ prefix and directory trailing slash", () => {
@@ -64,6 +72,22 @@ describe("Autocomplete Provider", () => {
     assert.equal(item.value, "@D:/01_programovani/pi/plugins/pi-spai/");
     assert.equal(item.label, "📁 pi-spai/");
     assert.ok(item.description?.includes("[TypeScript]"));
+
+    const itemWithGit = formatProjectAutocompleteItem(
+      {
+        ...sampleProjects[0]!,
+        git: {
+          isGit: true,
+          branch: "main",
+          clean: true,
+          statusEmoji: "✨",
+          statusSummary: "main ✨",
+        },
+      },
+      false,
+    );
+    assert.equal(itemWithGit.label, "📁 ✨ pi-spai/");
+    assert.ok(itemWithGit.description?.includes("[main ✨]"));
 
     const quotedItem = formatProjectAutocompleteItem(
       {

@@ -17,6 +17,7 @@ import { scanAllRoots } from "./src/scanner.js";
 import { createProjectsAutocompleteProvider } from "./src/autocomplete.js";
 import {
   coralGlow,
+  goldGlow,
   greenGlow,
   renderHelpBanner,
   renderProjectDetail,
@@ -25,7 +26,6 @@ import {
   renderStatusSummary,
 } from "./src/viewer.js";
 import type {
-  ProjectItem,
   ProjectsConfig,
   ProjectsIndex,
 } from "./src/types.js";
@@ -33,6 +33,7 @@ import type {
 const SUBCOMMANDS_DOCS: Record<string, string> = {
   list: "zobrazit přehlednou tabulku všech projektů",
   show: "zobrazit detail projektu podle ID či názvu",
+  sort: "nastavit řazení projektů (name = abecedně | mtime = podle data)",
   add: "ručně přidat projekt do indexu (<cesta> [název])",
   remove: "odebrat projekt z indexu (<id|cesta>)",
   roots: "správa kořenových složek pro skenování (list | add | remove)",
@@ -96,6 +97,7 @@ export default function (pi: ExtensionAPI): void {
           current,
           () => currentIndex.projects,
           () => currentConfig.prependToAtAutocomplete,
+          () => currentConfig.sortBy || "name",
         ),
       );
     }
@@ -108,7 +110,7 @@ export default function (pi: ExtensionAPI): void {
       currentIndex.projects.length === 0 ||
       now - currentIndex.lastUpdated > staleThreshold
     ) {
-      void refreshProjectsIndex(undefined, (msg) => {
+      void refreshProjectsIndex(undefined, () => {
         if (ctx.hasUI) {
           ctx.ui.setStatus(
             "pi-projects",
@@ -384,6 +386,56 @@ export default function (pi: ExtensionAPI): void {
         break;
       }
 
+      case "sort": {
+        const mode = rest[0]?.toLowerCase();
+        if (!mode) {
+          const currentDesc =
+            currentConfig.sortBy === "mtime"
+              ? "podle data změny (nejnovější)"
+              : "abecedně (A-Z)";
+          ctx.ui.notify(
+            `Aktuální řazení: ${goldGlow(currentDesc)}. Pro změnu použijte: /projects sort [name|mtime]`,
+            "info",
+          );
+          return;
+        }
+
+        if (
+          mode === "name" ||
+          mode === "alphabet" ||
+          mode === "alpha" ||
+          mode === "abc"
+        ) {
+          currentConfig.sortBy = "name";
+          saveProjectsConfig(currentConfig);
+          await refreshProjectsIndex();
+          ctx.ui.notify(
+            `Řazení projektů nastaveno na: ${greenGlow("Abecedně (A-Z)")}`,
+            "info",
+          );
+          break;
+        }
+
+        if (
+          mode === "mtime" ||
+          mode === "date" ||
+          mode === "time" ||
+          mode === "cas"
+        ) {
+          currentConfig.sortBy = "mtime";
+          saveProjectsConfig(currentConfig);
+          await refreshProjectsIndex();
+          ctx.ui.notify(
+            `Řazení projektů nastaveno na: ${greenGlow("Podle data změny (nejnovější)")}`,
+            "info",
+          );
+          break;
+        }
+
+        ctx.ui.notify("Použijte: /projects sort [name | mtime]", "warning");
+        break;
+      }
+
       case "add": {
         const targetPath = rest[0];
         const customName = rest.slice(1).join(" ").trim() || undefined;
@@ -635,6 +687,26 @@ export default function (pi: ExtensionAPI): void {
           (i) =>
             i.value.toLowerCase().startsWith(normalizedPrefix) ||
             i.label.toLowerCase().includes(tokens[1]?.toLowerCase() ?? ""),
+        );
+        return filtered.length > 0 ? filtered : null;
+      }
+
+      // /projects sort <name|mtime>
+      if (cmd === "sort") {
+        const sortOptions = [
+          {
+            value: "sort name",
+            label: "sort name",
+            description: "Řadit abecedně (A-Z)",
+          },
+          {
+            value: "sort mtime",
+            label: "sort mtime",
+            description: "Řadit podle data poslední změny (nejnovější)",
+          },
+        ];
+        const filtered = sortOptions.filter((i) =>
+          i.value.toLowerCase().startsWith(normalizedPrefix),
         );
         return filtered.length > 0 ? filtered : null;
       }

@@ -58,6 +58,7 @@ export function getDefaultConfig(): ProjectsConfig {
     maxDepth: 5,
     prependToAtAutocomplete: true,
     rescanIntervalMinutes: 30,
+    sortBy: "name",
   };
 }
 
@@ -87,6 +88,10 @@ export function loadProjectsConfig(): ProjectsConfig {
           typeof parsed.rescanIntervalMinutes === "number"
             ? parsed.rescanIntervalMinutes
             : 30,
+        sortBy:
+          parsed.sortBy === "mtime" || parsed.sortBy === "date"
+            ? "mtime"
+            : "name",
         lastScanTime: parsed.lastScanTime,
       };
     }

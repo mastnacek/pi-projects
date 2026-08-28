@@ -16,6 +16,21 @@ export type ProjectType =
 
 export type ProjectSource = "auto" | "manual";
 
+export type ProjectSortBy = "name" | "mtime" | "alphabet" | "date";
+
+export interface GitInfo {
+  isGit: boolean;
+  branch?: string;
+  clean?: boolean;
+  statusEmoji: string;
+  modifiedCount?: number;
+  stagedCount?: number;
+  untrackedCount?: number;
+  aheadCount?: number;
+  behindCount?: number;
+  statusSummary?: string;
+}
+
 export interface ProjectItem {
   id: string;
   name: string;
@@ -30,6 +45,7 @@ export interface ProjectItem {
   source: ProjectSource;
   pinned?: boolean;
   tags?: string[];
+  git?: GitInfo;
 }
 
 export interface ProjectsConfig {
@@ -39,6 +55,7 @@ export interface ProjectsConfig {
   maxDepth: number;
   prependToAtAutocomplete: boolean;
   rescanIntervalMinutes: number;
+  sortBy?: ProjectSortBy;
   lastScanTime?: number;
 }
 
