@@ -41,8 +41,9 @@ import type {
   ProjectSortBy,
 } from "./src/types.js";
 
-const SUBCOMMANDS_DOCS: Record<string, string> = {
-  list: "zobrazit tabulku projektů (filtry: root:X, name:Y, type:Z, sort:W)",
+const SUBCOMMANDS_DOCS = {
+  tree: "zobrazit stromovou strukturu projektů a podsložek",
+  list: "zobrazit strom / tabulku projektů (filtry: root:X, name:Y, type:Z, sort:W)",
   filter: "filtrovat projekty podle kořene, názvu či technologie",
   show: "zobrazit detail projektu podle ID či názvu",
   sort: "nastavit výchozí řazení (name | root | mtime | type | files | git)",
@@ -55,7 +56,7 @@ const SUBCOMMANDS_DOCS: Record<string, string> = {
   scan: "spustit okamžité přegenerování indexu projektů",
   status: "zobrazit statistiky indexu a stav @-našeptávání",
   help: "zobrazit podrobnou nápovědu v češtině",
-};
+} satisfies Record<string, string>;
 
 let currentConfig: ProjectsConfig = loadProjectsConfig();
 let currentIndex: ProjectsIndex = loadCachedProjects() || {
@@ -429,6 +430,7 @@ export default function (pi: ExtensionAPI): void {
     }
 
     switch (sub) {
+      case "tree":
       case "filter":
       case "list":
       case "ls": {
@@ -1048,8 +1050,13 @@ export default function (pi: ExtensionAPI): void {
         }
       }
 
-      // /projects list / filter
-      if (cmd === "list" || cmd === "ls" || cmd === "filter") {
+      // /projects list / filter / tree
+      if (
+        cmd === "list" ||
+        cmd === "ls" ||
+        cmd === "filter" ||
+        cmd === "tree"
+      ) {
         const types = [
           "TypeScript",
           "Node.js",

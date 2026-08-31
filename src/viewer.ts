@@ -5,6 +5,7 @@ import type {
   ProjectType,
 } from "./types.js";
 import { abbreviateRootOrigin } from "./autocomplete.js";
+import { normalizePath } from "./config.js";
 import { truncateToWidth, visibleWidth } from "@earendil-works/pi-tui";
 
 export const RESET = "\x1b[0m";
@@ -24,6 +25,243 @@ export const violetGlow = (s: string) =>
 export const coralGlow = (s: string) =>
   `\x1b[1m\x1b[38;2;255;107;107m${s}${RESET}`;
 export const dimGlow = (s: string) => `\x1b[38;2;127;140;141m${s}${RESET}`;
+
+export interface ProjectTreeNode {
+  name: string;
+  segment: string;
+  path: string;
+  relativePath?: string;
+  rootPath?: string;
+  source: "auto" | "manual";
+  isProject: boolean;
+  project?: ProjectItem;
+  subprojectCount: number;
+  totalFileCount: number;
+  hasChanges: boolean;
+  minOriginalIndex: number;
+  children: ProjectTreeNode[];
+}
+
+interface RawTreeNode {
+  segment: string;
+  fullRelativePath: string;
+  fullPath: string;
+  rootPath?: string;
+  source: "auto" | "manual";
+  project?: ProjectItem;
+  originalIndex?: number;
+  children: Map<string, RawTreeNode>;
+}
+
+function convertAndCompactRawNode(raw: RawTreeNode): ProjectTreeNode {
+  let curr = raw;
+  let combinedSegment = curr.segment;
+  let combinedRelPath = curr.fullRelativePath;
+  let combinedFullPath = curr.fullPath;
+
+  // Compact chain of single-child directories if curr is not a project
+  // and its only child is also not a project
+  while (!curr.project && curr.children.size === 1) {
+    const onlyChild = Array.from(curr.children.values())[0];
+    if (!onlyChild || onlyChild.project) {
+      break;
+    }
+    combinedSegment = combinedSegment
+      ? `${combinedSegment}/${onlyChild.segment}`
+      : onlyChild.segment;
+    combinedRelPath = onlyChild.fullRelativePath;
+    combinedFullPath = onlyChild.fullPath;
+    curr = onlyChild;
+  }
+
+  const convertedChildren = Array.from(curr.children.values()).map((child) =>
+    convertAndCompactRawNode(child),
+  );
+
+  // Sort children by minOriginalIndex to preserve the active sort order
+  convertedChildren.sort((a, b) => a.minOriginalIndex - b.minOriginalIndex);
+
+  let subprojectCount = curr.project ? 1 : 0;
+  let totalFileCount = curr.project ? curr.project.fileCount : 0;
+  let hasChanges = Boolean(curr.project?.git && !curr.project.git.clean);
+  let minOriginalIndex = curr.originalIndex ?? Number.MAX_SAFE_INTEGER;
+
+  for (const child of convertedChildren) {
+    subprojectCount += child.subprojectCount;
+    totalFileCount += child.totalFileCount;
+    if (child.hasChanges) {
+      hasChanges = true;
+    }
+    if (child.minOriginalIndex < minOriginalIndex) {
+      minOriginalIndex = child.minOriginalIndex;
+    }
+  }
+
+  const name = curr.project ? curr.project.name : combinedSegment;
+
+  return {
+    name,
+    segment: combinedSegment,
+    path: combinedFullPath,
+    relativePath: combinedRelPath || undefined,
+    rootPath: curr.project?.rootPath ?? curr.rootPath,
+    source: curr.project?.source ?? curr.source,
+    isProject: Boolean(curr.project),
+    project: curr.project,
+    subprojectCount,
+    totalFileCount,
+    hasChanges,
+    minOriginalIndex,
+    children: convertedChildren,
+  };
+}
+
+export function buildProjectTree(projects: ProjectItem[]): ProjectTreeNode[] {
+  if (projects.length === 0) return [];
+
+  // Group by root to keep root trees together
+  const rootGroups = new Map<
+    string,
+    Array<{ project: ProjectItem; originalIndex: number }>
+  >();
+
+  for (let idx = 0; idx < projects.length; idx++) {
+    const p = projects[idx];
+    if (!p) continue;
+    let rootKey = "__default__";
+    if (p.rootPath) {
+      rootKey = normalizePath(p.rootPath);
+    } else if (p.source === "manual") {
+      rootKey = "__manual__";
+    }
+
+    const group = rootGroups.get(rootKey) ?? [];
+    group.push({ project: p, originalIndex: idx });
+    rootGroups.set(rootKey, group);
+  }
+
+  const resultRoots: ProjectTreeNode[] = [];
+
+  for (const [rootKey, groupItems] of rootGroups.entries()) {
+    const isManualGroup = rootKey === "__manual__";
+    let groupRootPath: string | undefined;
+    if (!isManualGroup && rootKey !== "__default__") {
+      groupRootPath = rootKey;
+    }
+
+    const rawRoot: RawTreeNode = {
+      segment: "",
+      fullRelativePath: "",
+      fullPath: groupRootPath || "",
+      rootPath: groupRootPath,
+      source: isManualGroup ? "manual" : "auto",
+      children: new Map(),
+    };
+
+    for (const { project: p, originalIndex } of groupItems) {
+      const normPath = normalizePath(p.path);
+      let rel = p.relativePath
+        ? p.relativePath.replace(/\\/g, "/").replace(/^\/+|\/+$/g, "")
+        : "";
+
+      if (!rel && p.rootPath) {
+        const normRoot = normalizePath(p.rootPath);
+        if (normPath.startsWith(normRoot)) {
+          rel = normPath.slice(normRoot.length).replace(/^\/+|\/+$/g, "");
+        }
+      }
+
+      let segments: string[];
+      if (rel) {
+        segments = rel.split("/").filter(Boolean);
+      } else {
+        segments = [p.name];
+      }
+
+      let current = rawRoot;
+      let currRel = "";
+      for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+        if (!seg) continue;
+        currRel = currRel ? `${currRel}/${seg}` : seg;
+        let child = current.children.get(seg);
+        if (!child) {
+          const childFullPath = groupRootPath
+            ? `${groupRootPath}/${currRel}`
+            : normPath;
+          child = {
+            segment: seg,
+            fullRelativePath: currRel,
+            fullPath: childFullPath,
+            rootPath: p.rootPath,
+            source: p.source,
+            children: new Map(),
+          };
+          current.children.set(seg, child);
+        }
+        if (i === segments.length - 1) {
+          child.project = p;
+          child.originalIndex = originalIndex;
+        }
+        current = child;
+      }
+    }
+
+    const treeChildren = Array.from(rawRoot.children.values()).map((rawChild) =>
+      convertAndCompactRawNode(rawChild),
+    );
+
+    treeChildren.sort((a, b) => a.minOriginalIndex - b.minOriginalIndex);
+    resultRoots.push(...treeChildren);
+  }
+
+  resultRoots.sort((a, b) => a.minOriginalIndex - b.minOriginalIndex);
+  return resultRoots;
+}
+
+export interface FlattenedTreeRow {
+  node: ProjectTreeNode;
+  isLastStack: boolean[];
+}
+
+export function flattenTreeToRows(
+  nodes: ProjectTreeNode[],
+  ancestorIsLastStack: boolean[] = [],
+  isTopLevel = true,
+): FlattenedTreeRow[] {
+  const rows: FlattenedTreeRow[] = [];
+
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    if (!node) continue;
+    const isLastChild = i === nodes.length - 1;
+    const rowStack = isTopLevel ? [] : [...ancestorIsLastStack, isLastChild];
+
+    rows.push({
+      node,
+      isLastStack: rowStack,
+    });
+
+    if (node.children.length > 0) {
+      const nextAncestorStack = isTopLevel
+        ? []
+        : [...ancestorIsLastStack, isLastChild];
+      rows.push(...flattenTreeToRows(node.children, nextAncestorStack, false));
+    }
+  }
+
+  return rows;
+}
+
+export function getTreePrefix(isLastStack: boolean[]): string {
+  if (isLastStack.length === 0) return "";
+  let prefix = "";
+  for (let i = 0; i < isLastStack.length - 1; i++) {
+    prefix += isLastStack[i] ? "    " : "│   ";
+  }
+  prefix += isLastStack[isLastStack.length - 1] ? "└── " : "├── ";
+  return prefix;
+}
 
 export function padVisible(
   str: string,
@@ -144,32 +382,77 @@ export function renderProjectTable(
   lines.push(headerLine);
   lines.push(` ${dimGlow("├" + "─".repeat(headerVisible))}`);
 
-  for (const p of projects) {
-    const icon = p.pinned ? "📌" : p.source === "manual" ? "📎" : "📁";
-    const gitEmoji = p.git ? `${p.git.statusEmoji} ` : "";
-    const rawName = `${icon} ${gitEmoji}${p.name}`;
-    const truncatedName = truncateToWidth(rawName, colWidths.name);
-    const namePart = padVisible(cyanGlow(truncatedName), colWidths.name);
+  const treeNodes = buildProjectTree(projects);
+  const flattenedRows = flattenTreeToRows(treeNodes);
 
-    const rootAbbrev = `[${abbreviateRootOrigin(p.rootPath, p.source)}]`;
-    const rootPart = padVisible(violetGlow(rootAbbrev), colWidths.root);
+  for (const { node, isLastStack } of flattenedRows) {
+    const treePrefix = getTreePrefix(isLastStack);
 
-    const typeBadge = renderProjectTypeBadge(p.type);
-    const typePart = padVisible(typeBadge, colWidths.type);
+    if (node.isProject && node.project) {
+      const p = node.project;
+      const icon = p.pinned ? "📌" : p.source === "manual" ? "📎" : "📁";
+      const gitEmoji = p.git ? `${p.git.statusEmoji} ` : "";
+      const rawName = `${treePrefix}${icon} ${gitEmoji}${p.name}`;
+      const truncatedName = truncateToWidth(rawName, colWidths.name);
+      const namePart = padVisible(
+        p.pinned ? goldGlow(truncatedName) : cyanGlow(truncatedName),
+        colWidths.name,
+      );
 
-    const gitSummary = p.git?.statusSummary
-      ? p.git.clean
-        ? greenGlow(p.git.statusSummary)
-        : coralGlow(p.git.statusSummary)
-      : dimGlow("-");
-    const gitPart = padVisible(gitSummary, colWidths.git);
+      const rootAbbrev = `[${abbreviateRootOrigin(p.rootPath, p.source)}]`;
+      const rootPart = padVisible(violetGlow(rootAbbrev), colWidths.root);
 
-    const filesPart = padVisible(String(p.fileCount), colWidths.files, "right");
-    const pathPart = dimGlow(p.relativePath ? `.../${p.relativePath}` : p.path);
+      const typeBadge = renderProjectTypeBadge(p.type);
+      const typePart = padVisible(typeBadge, colWidths.type);
 
-    lines.push(
-      ` ${dimGlow("│")} ${namePart} ${rootPart} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
-    );
+      let gitSummary = dimGlow("-");
+      if (p.git?.statusSummary) {
+        gitSummary = p.git.clean
+          ? greenGlow(p.git.statusSummary)
+          : coralGlow(p.git.statusSummary);
+      }
+      const gitPart = padVisible(gitSummary, colWidths.git);
+
+      const filesPart = padVisible(
+        String(p.fileCount),
+        colWidths.files,
+        "right",
+      );
+      const pathPart = dimGlow(
+        p.relativePath ? `.../${p.relativePath}` : p.path,
+      );
+
+      lines.push(
+        ` ${dimGlow("│")} ${namePart} ${rootPart} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
+      );
+    } else {
+      // Folder node containing subprojects
+      const rawName = `${treePrefix}📁 ${node.name}/`;
+      const truncatedName = truncateToWidth(rawName, colWidths.name);
+      const namePart = padVisible(goldGlow(truncatedName), colWidths.name);
+
+      const rootAbbrev = `[${abbreviateRootOrigin(node.rootPath, node.source)}]`;
+      const rootPart = padVisible(dimGlow(rootAbbrev), colWidths.root);
+
+      const typeBadge = dimGlow(`(${node.subprojectCount} proj)`);
+      const typePart = padVisible(typeBadge, colWidths.type);
+
+      const gitSummary = node.hasChanges ? coralGlow("změny 📝") : dimGlow("─");
+      const gitPart = padVisible(gitSummary, colWidths.git);
+
+      const filesPart = padVisible(
+        String(node.totalFileCount),
+        colWidths.files,
+        "right",
+      );
+      const pathPart = dimGlow(
+        node.relativePath ? `.../${node.relativePath}` : node.path,
+      );
+
+      lines.push(
+        ` ${dimGlow("│")} ${namePart} ${rootPart} ${typePart} ${gitPart} ${filesPart} ${pathPart}`,
+      );
+    }
   }
 
   lines.push(` ${dimGlow("└" + "─".repeat(headerVisible))}`);

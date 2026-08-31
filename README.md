@@ -8,6 +8,7 @@
 
 ## ✨ Hlavní funkce
 
+- 🌳 **Stromová struktura projektů a podsložek (monorepa, pluginy):** Zobrazuje složky obsahující subprojekty přehledně jako stromovou strukturu (`├──`, `└──`) namísto plochého seznamu se souhrnným počtem subprojektů i souborů.
 - ⚡ **@-Našeptávání projektů s Git stavem:** Při psaní `@` nebo `@nazev` v editoru předsadí detekované projekty na 1. místo nabídky jako `@cesta/k/projektu/` s přehlednou Git ikonou (`✨`, `📝`, `➕`, `❓`, `🚀`, `📥`, `⚡`).
 - 🔀 **Volitelné řazení:** Možnost řadit projekty abecedně podle názvu (`name`), podle kořenové složky (`root`), data poslední změny (`mtime`), technologie (`type`), počtu souborů (`files`) nebo stavu Gitu (`git`) přes `/projects sort <režim>`.
 - 🔎 **Filtrování a pokročilé vyhledávání:** Okamžité filtrování podle kořenové složky, technologie či názvu (`/projects list root:X type:Y name:Z`), nebo fulltextové hodnocené vyhledávání (`/projects search <dotaz>`).
@@ -54,7 +55,8 @@ pi package add git:github.com/mastnacek/pi-projects
 
 | Příkaz | Popis |
 | --- | --- |
-| `/projects list [filtry]` | Zobrazit přehlednou tabulku projektů s volitelnými filtry (`root:X`, `name:Y`, `type:Z`, `sort:W`, `--dirty`, `--clean`) |
+| `/projects list [filtry]` | Zobrazit stromovou strukturu projektů a podsložek s volitelnými filtry (`root:X`, `name:Y`, `type:Z`, `sort:W`, `--dirty`, `--clean`) |
+| `/projects tree [filtry]` | Alias pro stromový výpis projektů a složek |
 | `/projects filter <kritéria>` | Alias pro filtrovaný výpis projektů podle kořene, názvu či technologie |
 | `/projects show <id\|název>` | Zobrazit detail konkrétního projektu včetně kompletní Git diagnostiky |
 | `/projects sort [režim]` | Nastavit výchozí řazení (`name`, `root`, `mtime`, `type`, `files`, `git`) |
