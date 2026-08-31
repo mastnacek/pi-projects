@@ -178,18 +178,51 @@ export function formatProjectAutocompleteItem(
   const displayLocation = proj.relativePath || proj.path;
 
   const pinIcon = proj.pinned ? "📌 " : "";
-  const gitTag = proj.git?.branch
-    ? ` (${proj.git.branch} ${proj.git.statusEmoji})`
-    : proj.git?.statusEmoji
-      ? ` (${proj.git.statusEmoji})`
-      : "";
+  let gitTag = "";
+  if (proj.git?.branch) {
+    gitTag = ` (${proj.git.branch} ${proj.git.statusEmoji})`;
+  } else if (proj.git?.statusEmoji) {
+    gitTag = ` (${proj.git.statusEmoji})`;
+  }
 
   const rootAbbrev = abbreviateRootOrigin(proj.rootPath, proj.source);
 
+  // Check if project is nested within a subfolder
+  let parentFolder = "";
+  const rel = (proj.relativePath || "")
+    .replace(/\\/g, "/")
+    .replace(/^\/+|\/+$/g, "");
+  if (rel) {
+    const segs = rel.split("/").filter(Boolean);
+    if (segs.length > 1) {
+      parentFolder = segs.slice(0, -1).join("/");
+    }
+  } else if (proj.rootPath) {
+    const normRoot = proj.rootPath.replace(/\\/g, "/").replace(/\/+$/, "");
+    if (normPath.startsWith(normRoot)) {
+      const subRel = normPath.slice(normRoot.length).replace(/^\/+|\/+$/g, "");
+      const segs = subRel.split("/").filter(Boolean);
+      if (segs.length > 1) {
+        parentFolder = segs.slice(0, -1).join("/");
+      }
+    }
+  }
+
+  const label = parentFolder
+    ? `📁 ${parentFolder}/ └─ ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`
+    : `📁 ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`;
+
+  const gitSummaryTag = proj.git?.statusSummary
+    ? `[${proj.git.statusSummary}] `
+    : "";
+  const locationTag = parentFolder
+    ? `↳ ${parentFolder}/${proj.name}`
+    : displayLocation;
+
   return {
     value,
-    label: `📁 ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`,
-    description: `[${rootAbbrev}] [${proj.type}] ${proj.git?.statusSummary ? `[${proj.git.statusSummary}] ` : ""}${displayLocation} (${proj.fileCount} souborů)`,
+    label,
+    description: `[${rootAbbrev}] [${proj.type}] ${gitSummaryTag}${locationTag} (${proj.fileCount} souborů)`,
   };
 }
 
@@ -281,10 +314,25 @@ export function createProjectsAutocompleteProvider(
               matchSub.rootPath,
               matchSub.source,
             );
+            const pinIcon = matchSub.pinned ? "📌 " : "";
+            let parentFolder = "";
+            const rel = (matchSub.relativePath || "")
+              .replace(/\\/g, "/")
+              .replace(/^\/+|\/+$/g, "");
+            if (rel) {
+              const segs = rel.split("/").filter(Boolean);
+              if (segs.length > 1) {
+                parentFolder = segs.slice(0, -1).join("/");
+              }
+            }
+            const label = parentFolder
+              ? `📁 ${parentFolder}/ └─ ${pinIcon}${matchSub.name}/${gitBadge} [${rootAbbrev}]`
+              : `📁 ${pinIcon}${matchSub.name}/${gitBadge} [${rootAbbrev}]`;
+
             return {
               ...item,
-              label: `📁 ${matchSub.name}/${gitBadge} [${rootAbbrev}]`,
-              description: `[${rootAbbrev}] [${matchSub.type}] ${matchSub.path}`,
+              label,
+              description: `[${rootAbbrev}] [${matchSub.type}] ${matchSub.git?.statusSummary ? `[${matchSub.git.statusSummary}] ` : ""}${matchSub.path}`,
             };
           }
           return item;

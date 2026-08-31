@@ -117,5 +117,32 @@ describe("Autocomplete Provider", () => {
       false,
     );
     assert.equal(quotedItem.value, '@"D:/My Projects/app/"');
+
+    const nestedItem = formatProjectAutocompleteItem(
+      {
+        id: "pi-projects",
+        name: "pi-projects",
+        path: "D:/01_programovani/pi/plugins/pi-projects",
+        rootPath: "D:/01_programovani",
+        relativePath: "pi/plugins/pi-projects",
+        type: "TypeScript",
+        fileCount: 20,
+        lastModified: 1000,
+        source: "auto",
+        markers: ["package.json"],
+        git: {
+          isGit: true,
+          branch: "main",
+          statusEmoji: "✨",
+          statusSummary: "main ✨",
+        },
+      },
+      false,
+    );
+    assert.equal(
+      nestedItem.label,
+      "📁 pi/plugins/ └─ pi-projects/ (main ✨) [D:01_prog]",
+    );
+    assert.ok(nestedItem.description?.includes("↳ pi/plugins/pi-projects"));
   });
 });
