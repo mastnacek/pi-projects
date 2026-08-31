@@ -116,8 +116,13 @@ export function renderProjectTable(
     35;
 
   if (projects.length === 0) {
-    const emptyCount = titleExtra ? `(0 položek — ${titleExtra})` : `(0 položek)`;
-    const topBarLen = Math.max(2, headerVisible - 20 - visibleWidth(emptyCount));
+    const emptyCount = titleExtra
+      ? `(0 položek — ${titleExtra})`
+      : `(0 položek)`;
+    const topBarLen = Math.max(
+      2,
+      headerVisible - 20 - visibleWidth(emptyCount),
+    );
     return [
       ` ${dimGlow("┌─")} ${goldGlow("Seznam projektů")} ${dimGlow(emptyCount)} ${dimGlow("─".repeat(topBarLen))}`,
       headerLine,

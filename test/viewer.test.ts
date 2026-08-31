@@ -113,7 +113,9 @@ describe("Viewer & Table Formatter", () => {
     assert.ok(lines.length >= 8);
 
     // Check that all row lines (lines starting with ' │') have exact column offsets
-    const rowLines = lines.filter((l) => l.includes("│") && !l.includes("Git / Název"));
+    const rowLines = lines.filter(
+      (l) => l.includes("│") && !l.includes("Git / Název"),
+    );
 
     assert.equal(rowLines.length, 5);
   });

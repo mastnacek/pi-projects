@@ -17,10 +17,18 @@ export function normalizeSortBy(
 ): "name" | "root" | "mtime" | "type" | "files" | "git" {
   if (!s) return "name";
   const lower = s.toLowerCase().trim();
-  if (lower === "root" || lower === "origin" || lower === "koren") return "root";
-  if (lower === "mtime" || lower === "date" || lower === "time" || lower === "cas") return "mtime";
+  if (lower === "root" || lower === "origin" || lower === "koren")
+    return "root";
+  if (
+    lower === "mtime" ||
+    lower === "date" ||
+    lower === "time" ||
+    lower === "cas"
+  )
+    return "mtime";
   if (lower === "type" || lower === "typ" || lower === "tech") return "type";
-  if (lower === "files" || lower === "soubory" || lower === "count") return "files";
+  if (lower === "files" || lower === "soubory" || lower === "count")
+    return "files";
   if (lower === "git" || lower === "status") return "git";
   return "name";
 }

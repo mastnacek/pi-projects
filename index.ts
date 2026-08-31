@@ -181,7 +181,8 @@ export default function (pi: ExtensionAPI): void {
         type: params.type,
         root: params.root,
         name: params.name,
-        sortBy: (params.sortBy as ProjectSortBy) || currentConfig.sortBy || "name",
+        sortBy:
+          (params.sortBy as ProjectSortBy) || currentConfig.sortBy || "name",
       });
 
       const limit = params.limit ?? 100;
@@ -258,10 +259,14 @@ export default function (pi: ExtensionAPI): void {
       ),
     }),
     execute: async (_toolCallId, params) => {
-      const ranked = searchAndRankProjects(currentIndex.projects, params.query, {
-        root: params.root,
-        type: params.type,
-      });
+      const ranked = searchAndRankProjects(
+        currentIndex.projects,
+        params.query,
+        {
+          root: params.root,
+          type: params.type,
+        },
+      );
 
       const limit = params.limit ?? 50;
       const sliced = ranked.slice(0, limit);
@@ -506,13 +511,9 @@ export default function (pi: ExtensionAPI): void {
           filterOptions.query = textTokens.join(" ");
         }
 
-        filterOptions.sortBy =
-          customSort || currentConfig.sortBy || "name";
+        filterOptions.sortBy = customSort || currentConfig.sortBy || "name";
 
-        const filtered = filterProjects(
-          currentIndex.projects,
-          filterOptions,
-        );
+        const filtered = filterProjects(currentIndex.projects, filterOptions);
 
         const descParts: string[] = [];
         if (filterOptions.root) descParts.push(`kořen: ${filterOptions.root}`);
@@ -844,10 +845,7 @@ export default function (pi: ExtensionAPI): void {
           );
           return;
         }
-        const ranked = searchAndRankProjects(
-          currentIndex.projects,
-          query,
-        );
+        const ranked = searchAndRankProjects(currentIndex.projects, query);
         if (ranked.length === 0) {
           ctx.ui.notify(
             `Pro dotaz "${query}" nebyly nalezeny žádné odpovídající projekty.`,

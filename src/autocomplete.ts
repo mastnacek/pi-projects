@@ -111,10 +111,14 @@ export function filterProjectsForAutocomplete(
       } else if (normSort === "root") {
         const rootA = (a.rootPath || a.source || "").toLowerCase();
         const rootB = (b.rootPath || b.source || "").toLowerCase();
-        const cmp = rootA.localeCompare(rootB, undefined, { sensitivity: "base" });
+        const cmp = rootA.localeCompare(rootB, undefined, {
+          sensitivity: "base",
+        });
         if (cmp !== 0) return cmp;
       } else if (normSort === "type") {
-        const cmp = a.type.localeCompare(b.type, undefined, { sensitivity: "base" });
+        const cmp = a.type.localeCompare(b.type, undefined, {
+          sensitivity: "base",
+        });
         if (cmp !== 0) return cmp;
       } else if (normSort === "files") {
         if (b.fileCount !== a.fileCount) return b.fileCount - a.fileCount;
@@ -137,9 +141,19 @@ export function filterProjectsForAutocomplete(
         return b.project.lastModified - a.project.lastModified;
       }
     } else if (normSort === "root") {
-      const rootA = (a.project.rootPath || a.project.source || "").toLowerCase();
-      const rootB = (b.project.rootPath || b.project.source || "").toLowerCase();
-      const cmp = rootA.localeCompare(rootB, undefined, { sensitivity: "base" });
+      const rootA = (
+        a.project.rootPath ||
+        a.project.source ||
+        ""
+      ).toLowerCase();
+      const rootB = (
+        b.project.rootPath ||
+        b.project.source ||
+        ""
+      ).toLowerCase();
+      const cmp = rootA.localeCompare(rootB, undefined, {
+        sensitivity: "base",
+      });
       if (cmp !== 0) return cmp;
     }
     return a.project.name.localeCompare(b.project.name, undefined, {

@@ -59,7 +59,10 @@ export function sortProjects(
     }
 
     // Default secondary sort: project name A-Z
-    return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+    return a.name.localeCompare(b.name, undefined, {
+      sensitivity: "base",
+      numeric: true,
+    });
   });
 }
 
@@ -183,10 +186,7 @@ export function searchAndRankProjects(
     const typeL = p.type.toLowerCase();
     const descL = (p.description || "").toLowerCase();
     const rootL = (p.rootPath || "").toLowerCase();
-    const rootAbbrev = abbreviateRootOrigin(
-      p.rootPath,
-      p.source,
-    ).toLowerCase();
+    const rootAbbrev = abbreviateRootOrigin(p.rootPath, p.source).toLowerCase();
     const branchL = (p.git?.branch || "").toLowerCase();
 
     let allMatched = true;
