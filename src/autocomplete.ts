@@ -175,9 +175,8 @@ export function formatProjectAutocompleteItem(
   const needsQuotes = isQuotedPrefix || pathValue.includes(" ");
 
   const value = needsQuotes ? `@"${pathValue}"` : `@${pathValue}`;
-  const displayLocation = proj.relativePath || proj.path;
 
-  const pinIcon = proj.pinned ? "📌 " : "";
+  const pinIcon = proj.pinned ? "📌 " : proj.source === "manual" ? "📎 " : "";
   let gitTag = "";
   if (proj.git?.branch) {
     gitTag = ` (${proj.git.branch} ${proj.git.statusEmoji})`;
@@ -208,21 +207,19 @@ export function formatProjectAutocompleteItem(
     }
   }
 
-  const label = parentFolder
-    ? `📁 ${parentFolder}/ └─ ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`
-    : `📁 ${pinIcon}${proj.name}/${gitTag} [${rootAbbrev}]`;
+  // Keep label concise and focused on project name so it never truncates in TUI
+  const label = `📁 ${pinIcon}${proj.name}/${gitTag}`;
 
+  // Put tree hierarchy, technology, and origin in description
+  const treePrefix = parentFolder ? `📁 ${parentFolder}/ └─ ` : "";
   const gitSummaryTag = proj.git?.statusSummary
     ? `[${proj.git.statusSummary}] `
     : "";
-  const locationTag = parentFolder
-    ? `↳ ${parentFolder}/${proj.name}`
-    : displayLocation;
 
   return {
     value,
     label,
-    description: `[${rootAbbrev}] [${proj.type}] ${gitSummaryTag}${locationTag} (${proj.fileCount} souborů)`,
+    description: `${treePrefix}[${proj.type}] ${gitSummaryTag}(${proj.fileCount} souborů) [${rootAbbrev}]`,
   };
 }
 
@@ -314,7 +311,12 @@ export function createProjectsAutocompleteProvider(
               matchSub.rootPath,
               matchSub.source,
             );
-            const pinIcon = matchSub.pinned ? "📌 " : "";
+            let pinIcon = "";
+            if (matchSub.pinned) {
+              pinIcon = "📌 ";
+            } else if (matchSub.source === "manual") {
+              pinIcon = "📎 ";
+            }
             let parentFolder = "";
             const rel = (matchSub.relativePath || "")
               .replace(/\\/g, "/")
@@ -325,14 +327,14 @@ export function createProjectsAutocompleteProvider(
                 parentFolder = segs.slice(0, -1).join("/");
               }
             }
-            const label = parentFolder
-              ? `📁 ${parentFolder}/ └─ ${pinIcon}${matchSub.name}/${gitBadge} [${rootAbbrev}]`
-              : `📁 ${pinIcon}${matchSub.name}/${gitBadge} [${rootAbbrev}]`;
+
+            const label = `📁 ${pinIcon}${matchSub.name}/${gitBadge}`;
+            const treePrefix = parentFolder ? `📁 ${parentFolder}/ └─ ` : "";
 
             return {
               ...item,
               label,
-              description: `[${rootAbbrev}] [${matchSub.type}] ${matchSub.git?.statusSummary ? `[${matchSub.git.statusSummary}] ` : ""}${matchSub.path}`,
+              description: `${treePrefix}[${matchSub.type}] ${matchSub.git?.statusSummary ? `[${matchSub.git.statusSummary}] ` : ""}(${matchSub.fileCount} souborů) [${rootAbbrev}]`,
             };
           }
           return item;

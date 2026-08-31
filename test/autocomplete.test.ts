@@ -87,7 +87,7 @@ describe("Autocomplete Provider", () => {
       false,
     );
     assert.equal(item.value, "@D:/01_programovani/pi/plugins/pi-spai/");
-    assert.equal(item.label, "📁 pi-spai/ [D:01_prog]");
+    assert.equal(item.label, "📁 pi-spai/");
     assert.ok(item.description?.includes("[D:01_prog]"));
     assert.ok(item.description?.includes("[TypeScript]"));
 
@@ -105,7 +105,7 @@ describe("Autocomplete Provider", () => {
       },
       false,
     );
-    assert.equal(itemWithGit.label, "📁 pi-spai/ (main ✨) [D:01_prog]");
+    assert.equal(itemWithGit.label, "📁 pi-spai/ (main ✨)");
     assert.ok(itemWithGit.description?.includes("[D:01_prog]"));
     assert.ok(itemWithGit.description?.includes("[main ✨]"));
 
@@ -139,10 +139,9 @@ describe("Autocomplete Provider", () => {
       },
       false,
     );
-    assert.equal(
-      nestedItem.label,
-      "📁 pi/plugins/ └─ pi-projects/ (main ✨) [D:01_prog]",
-    );
-    assert.ok(nestedItem.description?.includes("↳ pi/plugins/pi-projects"));
+    assert.equal(nestedItem.label, "📁 pi-projects/ (main ✨)");
+    assert.ok(nestedItem.description?.includes("📁 pi/plugins/ └─"));
+    assert.ok(nestedItem.description?.includes("[TypeScript]"));
+    assert.ok(nestedItem.description?.includes("[D:01_prog]"));
   });
 });
