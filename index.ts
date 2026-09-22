@@ -136,6 +136,13 @@ export default function (pi: ExtensionAPI): void {
     }
   });
 
+  // 1b. Session shutdown: drop session-scoped state so nothing stale survives
+  // a session replacement (AGENTS.md §5/§6). Disk cache is left intact.
+  pi.on("session_shutdown", () => {
+    isScanning = false;
+    currentIndex = { projects: [], lastUpdated: 0, rootsScanned: [] };
+  });
+
   // 2. Custom tools for Agent
   pi.registerTool({
     name: "list_projects",
