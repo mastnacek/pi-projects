@@ -92,8 +92,16 @@ async function refreshProjectsIndex(
 }
 
 export default function (pi: ExtensionAPI): void {
+  /** Unsubscribers from every `pi.on()`; drained on session_shutdown (AGENTS §5). */
+  const unsubscribers: Array<() => void> = [];
+
+  /** Retain a `pi.on()` return value; older engine typings declare it void. */
+  const track = (result: unknown): void => {
+    if (typeof result === "function") unsubscribers.push(result as () => void);
+  };
+
   // 1. Session start & Autocomplete provider hook
-  pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+  track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {
     currentConfig = loadProjectsConfig();
     const cached = loadCachedProjects();
     if (cached) {
@@ -134,11 +142,12 @@ export default function (pi: ExtensionAPI): void {
         }
       });
     }
-  });
+  }));
 
   // 1b. Session shutdown: drop session-scoped state so nothing stale survives
   // a session replacement (AGENTS.md §5/§6). Disk cache is left intact.
   pi.on("session_shutdown", () => {
+    while (unsubscribers.length > 0) unsubscribers.pop()?.();
     isScanning = false;
     currentIndex = { projects: [], lastUpdated: 0, rootsScanned: [] };
   });
