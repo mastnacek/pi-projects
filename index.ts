@@ -391,15 +391,9 @@ export default function (pi: ExtensionAPI): void {
       const norm = normalizePath(params.path);
       const item = createProjectItem(norm, undefined, "manual");
       if (!item) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Cesta "${norm}" neexistuje nebo z ní nelze načíst projekt.`,
-            },
-          ],
-          details: { success: false, path: norm },
-        };
+        throw new Error(
+          `Cesta "${norm}" neexistuje nebo z ní nelze načíst projekt.`,
+        );
       }
 
       if (params.name) {
