@@ -1025,12 +1025,12 @@ export default function (pi: ExtensionAPI): void {
               description: "Zobrazit kořenové složky",
             },
             {
-              value: "roots add",
+              value: "roots add ",
               label: "roots add",
               description: "Přidat kořenovou složku",
             },
             {
-              value: "roots remove",
+              value: "roots remove ",
               label: "roots remove",
               description: "Odebrat kořenovou složku",
             },
@@ -1137,9 +1137,30 @@ export default function (pi: ExtensionAPI): void {
 
     // 1st Token Completion (Subcommands from Dictionary)
     const typed = (tokens[0] ?? "").toLowerCase();
-    const items = Object.entries(SUBCOMMANDS_DOCS)
-      .filter(([key]) => key.toLowerCase().startsWith(typed))
-      .map(([value, description]) => ({ value, label: value, description }));
+    const NON_TERMINAL = new Set([
+      "tree",
+      "list",
+      "filter",
+      "show",
+      "sort",
+      "search",
+      "find",
+      "roots",
+      "pin",
+      "unpin",
+      "remove",
+      "rm",
+    ]);
+    const items: AutocompleteItem[] = [];
+    for (const [key, description] of Object.entries(SUBCOMMANDS_DOCS)) {
+      if (key.toLowerCase().startsWith(typed)) {
+        items.push({
+          value: NON_TERMINAL.has(key) ? `${key} ` : key,
+          label: key,
+          description,
+        });
+      }
+    }
 
     return items.length > 0 ? items : null;
   };
