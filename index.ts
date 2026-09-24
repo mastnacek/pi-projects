@@ -12,6 +12,8 @@ import {
   normalizeSortBy,
   saveCachedProjects,
   saveProjectsConfig,
+  saveProjectsScanTime,
+  setConfigCwd,
 } from "./src/config.js";
 import { createProjectItem } from "./src/detector.js";
 import {
@@ -78,7 +80,7 @@ async function refreshProjectsIndex(
     const updated = await scanAllRoots(currentConfig, signal);
     currentIndex = updated;
     currentConfig.lastScanTime = updated.lastUpdated;
-    saveProjectsConfig(currentConfig);
+    saveProjectsScanTime(updated.lastUpdated);
     saveCachedProjects(updated);
     if (notifyCb) {
       notifyCb(
@@ -102,6 +104,8 @@ export default function (pi: ExtensionAPI): void {
 
   // 1. Session start & Autocomplete provider hook
   track(pi.on("session_start", async (_event, ctx: ExtensionContext) => {
+    // Point the config cascade at this session's project layer.
+    setConfigCwd(ctx.cwd);
     currentConfig = loadProjectsConfig();
     const cached = loadCachedProjects();
     if (cached) {
@@ -343,7 +347,8 @@ export default function (pi: ExtensionAPI): void {
       const norm = normalizePath(params.path);
       if (!currentConfig.roots.includes(norm)) {
         currentConfig.roots.push(norm);
-        saveProjectsConfig(currentConfig);
+        // Tool-side write: the session cwd decides the project layer.
+        saveProjectsConfig(currentConfig, false);
         await refreshProjectsIndex();
         return {
           content: [
@@ -409,7 +414,8 @@ export default function (pi: ExtensionAPI): void {
         currentConfig.manualProjects.push(item);
       }
 
-      saveProjectsConfig(currentConfig);
+      // Tool-side write: the session cwd decides the project layer.
+      saveProjectsConfig(currentConfig, false);
       await refreshProjectsIndex();
 
       return {
@@ -430,7 +436,10 @@ export default function (pi: ExtensionAPI): void {
     ctx: ExtensionCommandContext,
   ) => {
     const trimmed = args.trim();
-    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    // `--global` is accepted as a prefix or a suffix and is stripped here.
+    const rawTokens = trimmed.split(/\s+/).filter(Boolean);
+    const isGlobal = rawTokens.some((t) => t.toLowerCase() === "--global");
+    const tokens = rawTokens.filter((t) => t.toLowerCase() !== "--global");
     const sub = (tokens[0] ?? "").toLowerCase();
     const rest = tokens.slice(1);
 
@@ -591,7 +600,7 @@ export default function (pi: ExtensionAPI): void {
 
         const norm = normalizeSortBy(mode);
         currentConfig.sortBy = norm;
-        saveProjectsConfig(currentConfig);
+        saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
         currentIndex.projects = sortProjects(currentIndex.projects, norm);
         saveCachedProjects(currentIndex);
 
@@ -635,7 +644,7 @@ export default function (pi: ExtensionAPI): void {
         currentConfig.pinnedPaths = currentConfig.pinnedPaths ?? [];
         if (!currentConfig.pinnedPaths.includes(normP)) {
           currentConfig.pinnedPaths.push(normP);
-          saveProjectsConfig(currentConfig);
+          saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
           await refreshProjectsIndex();
         }
         ctx.ui.notify(
@@ -668,7 +677,7 @@ export default function (pi: ExtensionAPI): void {
         currentConfig.pinnedPaths = (currentConfig.pinnedPaths ?? []).filter(
           (p) => p !== normP,
         );
-        saveProjectsConfig(currentConfig);
+        saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
         await refreshProjectsIndex();
         ctx.ui.notify(`Projekt ${greenGlow(proj.name)} byl odepnut.`, "info");
         break;
@@ -703,7 +712,7 @@ export default function (pi: ExtensionAPI): void {
         } else {
           currentConfig.manualProjects.push(item);
         }
-        saveProjectsConfig(currentConfig);
+        saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
         await refreshProjectsIndex(undefined, (msg) =>
           ctx.ui.notify(msg, "info"),
         );
@@ -741,7 +750,7 @@ export default function (pi: ExtensionAPI): void {
           currentConfig.excludedPaths.push(normTarget);
         }
 
-        saveProjectsConfig(currentConfig);
+        saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
         await refreshProjectsIndex();
         const afterCount = currentIndex.projects.length;
 
@@ -782,7 +791,7 @@ export default function (pi: ExtensionAPI): void {
             return;
           }
           currentConfig.roots.push(norm);
-          saveProjectsConfig(currentConfig);
+          saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
           ctx.ui.notify(
             `Přidána kořenová složka: ${greenGlow(norm)}. Spouštím skenování...`,
             "info",
@@ -813,7 +822,7 @@ export default function (pi: ExtensionAPI): void {
             );
             return;
           }
-          saveProjectsConfig(currentConfig);
+          saveProjectsConfig(currentConfig, isGlobal, ctx.cwd);
           ctx.ui.notify(
             `Odebrána kořenová složka: ${coralGlow(norm)}. Aktualizuji index...`,
             "info",
@@ -890,6 +899,34 @@ export default function (pi: ExtensionAPI): void {
   const getProjectsArgumentCompletions = async (
     prefix: string,
   ): Promise<AutocompleteItem[] | null> => {
+    // `--global` prefix: complete the remainder, then re-prefix the suggestions.
+    const globalTrimmed = prefix.trimStart();
+    if (globalTrimmed.startsWith("--global")) {
+      const afterGlobal = globalTrimmed.slice(8).trimStart();
+      const hasTrailingSpace = globalTrimmed.length > 8 || /\s$/.test(prefix);
+      if (!hasTrailingSpace && afterGlobal === "") {
+        return [
+          {
+            value: "--global ",
+            label: "--global",
+            description: "Uložit nastavení globálně (~/.pi/agent/)",
+          },
+        ];
+      }
+      const subItems = await getProjectsArgumentCompletions(afterGlobal);
+      if (!subItems) return null;
+      const remapped: AutocompleteItem[] = [];
+      for (const item of subItems) {
+        if (item.label === "--global") continue;
+        remapped.push({
+          value: `--global ${item.value}`,
+          label: item.label,
+          description: item.description,
+        });
+      }
+      return remapped.length > 0 ? remapped : null;
+    }
+
     const tokens = prefix.split(/\s+/).filter(Boolean);
     const trailingSpace = /\s$/.test(prefix);
     const normalizedPrefix = tokens.join(" ").toLowerCase();
@@ -1155,6 +1192,13 @@ export default function (pi: ExtensionAPI): void {
       "rm",
     ]);
     const items: AutocompleteItem[] = [];
+    if ("--global".startsWith(typed)) {
+      items.push({
+        value: "--global ",
+        label: "--global",
+        description: "Uložit nastavení globálně (~/.pi/agent/)",
+      });
+    }
     for (const [key, description] of Object.entries(SUBCOMMANDS_DOCS)) {
       if (key.toLowerCase().startsWith(typed)) {
         items.push({
